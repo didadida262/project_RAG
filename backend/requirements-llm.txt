@@ -1,0 +1,2 @@
+# Install after core deps; may require CMake / Xcode CLI tools to build from source.
+llama-cpp-python>=0.3.1
