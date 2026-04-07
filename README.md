@@ -69,9 +69,27 @@ npm run dev
 
 开发时 Vite 会把 `/api` 代理到 `http://127.0.0.1:8000`。若后端部署在其他地址，可设置环境变量 `VITE_API_URL`。
 
+## 语料入库（推荐流程）
+
+1. 把 `.txt` / `.md` 放进仓库根目录的 **`docs/`**（可含子目录）。
+2. 在**启动前后端之前**（或更新语料后、重启后端前）在项目根目录执行：
+
+```bash
+./ingest_docs.sh
+```
+
+首次全量重建向量库（清空旧 Chroma 再导入）：
+
+```bash
+./ingest_docs.sh --clear
+```
+
+3. 再运行 `./run-backend.sh` 与 `./run-frontend.sh`。  
+   前端不再提供网页上传语料；批量入库在本地跑脚本，避免 HTTP 上传大文件超时。
+
 ## 功能概要
 
-- 导入 `.txt` / `.md` 入 Chroma，对话时检索 + **上下文长度压缩** 后送入本地 GGUF
+- 通过 `ingest_docs.sh` 将 `docs/` 下 `.txt` / `.md` 写入 Chroma；对话时检索 + **上下文压缩** 后送入本地 GGUF
 - 流式输出（SSE）与明暗主题、Font Awesome 图标
 
 ## API 摘要

@@ -1,4 +1,4 @@
-import { faCircleInfo, faFileArrowUp, faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
+import { faCircleInfo, faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { motion } from 'framer-motion'
 
@@ -6,7 +6,6 @@ type Props = {
   corpusCount: number
   llmReady: boolean
   llmHint?: string | null
-  onPickFile: () => void
   onToggleTheme: () => void
   themeIsDark: boolean
 }
@@ -15,7 +14,6 @@ export function HeaderBar({
   corpusCount,
   llmReady,
   llmHint,
-  onPickFile,
   onToggleTheme,
   themeIsDark,
 }: Props) {
@@ -40,14 +38,6 @@ export function HeaderBar({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onPickFile}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-800 shadow-sm transition hover:border-cyan-500/50 hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200 dark:hover:border-cyan-500/40 dark:hover:bg-zinc-800/80"
-        >
-          <FontAwesomeIcon icon={faFileArrowUp} />
-          导入 .txt / .md
-        </button>
         <button
           type="button"
           onClick={onToggleTheme}

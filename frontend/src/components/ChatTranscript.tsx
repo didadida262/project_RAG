@@ -25,7 +25,12 @@ export function ChatTranscript({ messages, warnings, streaming }: Props) {
             <p className="font-medium text-zinc-800 dark:text-zinc-200">
               开始对话
             </p>
-            <p>先导入 .txt / .md 语料，或直接提问测试流程。若未配置 GGUF，回答将不可用。</p>
+            <p>
+              语料请在项目根目录的 <code className="rounded bg-zinc-200/80 px-1 py-0.5 text-xs dark:bg-zinc-800">docs/</code>{' '}
+              中维护，并在启动服务前运行{' '}
+              <code className="rounded bg-zinc-200/80 px-1 py-0.5 text-xs dark:bg-zinc-800">./ingest_docs.sh</code>
+              。也可直接提问；若无语料或未配置 GGUF，回答会受限。
+            </p>
           </div>
         ) : (
           <ul className="mx-auto flex max-w-3xl flex-col gap-4">

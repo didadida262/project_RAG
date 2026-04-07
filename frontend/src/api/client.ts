@@ -104,34 +104,6 @@ export async function streamChat(
   }
 }
 
-export async function ingestFile(file: File) {
-  const fd = new FormData()
-  fd.append('file', file)
-  const url = `${baseURL}/api/ingest/file`
-  const res = await fetch(url, {
-    method: 'POST',
-    body: fd,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const detail = (err as { detail?: string }).detail
-    throw new Error(typeof detail === 'string' ? detail : `HTTP ${res.status}`)
-  }
-  return res.json() as Promise<{
-    chunks_added: number
-    total: number
-    filename: string
-  }>
-}
-
-export async function ingestText(text: string, source_name?: string) {
-  const { data } = await api.post<{
-    chunks_added: number
-    total: number
-  }>('/api/ingest/text', { text, source_name })
-  return data
-}
-
 export async function fetchStatus() {
   const { data } = await api.get<{
     chroma_documents: number

@@ -1,10 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  fetchStatus,
-  ingestFile,
-  streamChat,
-  type ChatMessage,
-} from './api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { fetchStatus, streamChat, type ChatMessage } from './api/client'
 import { ChatTranscript } from './components/ChatTranscript'
 import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
@@ -19,7 +14,6 @@ export default function App() {
   const [corpusCount, setCorpusCount] = useState(0)
   const [llmReady, setLlmReady] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -39,7 +33,7 @@ export default function App() {
       setLlmHint(parts.filter(Boolean).join('\n') || null)
     } catch {
       setLlmHint(
-        '无法连接后端：请另开终端运行 ./run-backend.sh（默认 8000），并等待嵌入模型下载完成。',
+        '无法连接后端：请另开终端运行 ./run-backend.sh（默认 8000），并等待嵌入模型就绪。',
       )
       setLlmReady(false)
     }
@@ -48,23 +42,6 @@ export default function App() {
   useEffect(() => {
     void refreshStatus()
   }, [refreshStatus])
-
-  const onPickFile = () => fileRef.current?.click()
-
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    e.target.value = ''
-    if (!f) return
-    try {
-      const r = await ingestFile(f)
-      setCorpusCount(r.total)
-      setWarnings([`已导入 ${f.name}，新增 ${r.chunks_added} 个块`])
-    } catch (err) {
-      setWarnings([
-        err instanceof Error ? err.message : '导入失败',
-      ])
-    }
-  }
 
   const send = async () => {
     const text = input.trim()
@@ -119,18 +96,10 @@ export default function App() {
     <div
       className="flex min-h-screen flex-col bg-gradient-to-b from-zinc-100 via-white to-zinc-100 text-zinc-900 dark:from-zinc-950 dark:via-zinc-950 dark:to-black dark:text-zinc-100"
     >
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".txt,.md,.markdown"
-        className="hidden"
-        onChange={onFileChange}
-      />
       <HeaderBar
         corpusCount={corpusCount}
         llmReady={llmReady}
         llmHint={llmHint}
-        onPickFile={onPickFile}
         onToggleTheme={toggle}
         themeIsDark={theme === 'dark'}
       />

@@ -36,6 +36,11 @@ npm-debug.log*
 .vscode/
 *.swp
 
+# 语料内容默认不入库（保留目录说明）
+docs/*
+!docs/.gitkeep
+!docs/README.md
+
 # Local data (Chroma, uploads)
 backend/data/
 **/chroma_data/
