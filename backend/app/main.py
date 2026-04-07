@@ -59,6 +59,7 @@ class IngestTextBody(BaseModel):
 def startup():
     settings.chroma_path.mkdir(parents=True, exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    llama_engine.start_background_preload()
 
 
 @app.get("/api/health")

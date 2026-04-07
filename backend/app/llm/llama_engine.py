@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Tuple
 
 from app.config import settings
 
@@ -10,44 +11,89 @@ logger = logging.getLogger(__name__)
 
 _llm = None
 _load_error: Optional[str] = None
+_cv = threading.Condition()
+_loading = False
 
 
-def _load_llm():
-    global _llm, _load_error
-    if _llm is not None or _load_error is not None:
-        return
+def _try_build_llama() -> Tuple[Optional[object], Optional[str]]:
+    """返回 (Llama 实例, 错误信息)。只做一次构建，不碰全局锁里的状态。"""
     path = settings.gguf_model_path
     if not path:
-        _load_error = "GGUF_MODEL_PATH is not set"
-        return
+        return None, "GGUF_MODEL_PATH is not set"
     p = Path(path)
     if not p.is_file():
-        _load_error = f"GGUF file not found: {path}"
-        return
+        return None, f"GGUF file not found: {path}"
     try:
         from llama_cpp import Llama
     except Exception as e:  # pragma: no cover
-        _load_error = f"llama-cpp-python import failed: {e}"
-        logger.exception(_load_error)
-        return
+        return None, f"llama-cpp-python import failed: {e}"
     try:
-        _llm = Llama(
+        llm = Llama(
             model_path=str(p),
             n_ctx=settings.n_ctx,
             n_gpu_layers=settings.n_gpu_layers,
             verbose=False,
         )
+        return llm, None
     except Exception as e:
-        _load_error = f"Failed to load model: {e}"
-        logger.exception(_load_error)
+        logger.exception("Llama load failed")
+        return None, f"Failed to load model: {e}"
+
+
+def _load_llm() -> None:
+    """单飞加载：多线程同时调用时只有一个会真正加载，其余在 Condition 上等待。"""
+    global _llm, _load_error, _loading
+    with _cv:
+        if _llm is not None or _load_error is not None:
+            return
+        while _loading:
+            _cv.wait(timeout=2.0)
+        if _llm is not None or _load_error is not None:
+            return
+        _loading = True
+
+    built, err = None, None
+    try:
+        built, err = _try_build_llama()
+    finally:
+        with _cv:
+            _loading = False
+            if built is not None:
+                _llm = built
+            elif err is not None:
+                _load_error = err
+            else:
+                _load_error = "Unknown load failure"
+            _cv.notify_all()
+
+
+def start_background_preload() -> None:
+    """启动时调用：在后台线程加载 GGUF，不阻塞 HTTP。"""
+
+    def run() -> None:
+        logger.info("GGUF background preload started")
+        _load_llm()
+        if _llm is not None:
+            logger.info("GGUF loaded successfully")
+        else:
+            logger.warning("GGUF preload finished without model: %s", _load_error)
+
+    t = threading.Thread(target=run, daemon=True, name="gguf-preload")
+    t.start()
 
 
 def llm_status() -> dict:
-    _load_llm()
+    """轻量状态，不触发加载（避免 /api/status 卡死）。"""
+    with _cv:
+        loading = _loading
+        ready = _llm is not None
+        err = _load_error
+    path_set = bool(settings.gguf_model_path)
     return {
-        "ready": _llm is not None,
-        "error": _load_error,
-        "path_set": bool(settings.gguf_model_path),
+        "ready": ready,
+        "error": err,
+        "path_set": path_set,
+        "loading": bool(loading and not ready and err is None and path_set),
     }
 
 

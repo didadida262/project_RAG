@@ -13,6 +13,7 @@ export default function App() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [corpusCount, setCorpusCount] = useState(0)
   const [llmReady, setLlmReady] = useState(false)
+  const [llmLoading, setLlmLoading] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
 
   const refreshStatus = useCallback(async () => {
@@ -20,9 +21,14 @@ export default function App() {
       const s = await fetchStatus()
       setCorpusCount(s.chroma_documents)
       setLlmReady(s.llm.ready)
+      setLlmLoading(Boolean(s.llm.loading))
       const parts: string[] = []
       if (s.embedding_error) parts.push(s.embedding_error)
-      if (!s.llm.ready) {
+      if (s.llm.loading) {
+        parts.push(
+          'GGUF 正在后台载入内存（大文件可能要几分钟），状态会自动刷新；完成显示「模型已加载」后即可对话。',
+        )
+      } else if (!s.llm.ready) {
         parts.push(
           s.llm.error ||
             (!s.llm.path_set
@@ -33,14 +39,17 @@ export default function App() {
       setLlmHint(parts.filter(Boolean).join('\n') || null)
     } catch {
       setLlmHint(
-        '无法连接后端：请另开终端运行 ./run-backend.sh（默认 8000），并等待嵌入模型就绪。',
+        '无法连接后端：请另开终端运行 ./run-backend.sh（默认 8000）。',
       )
       setLlmReady(false)
+      setLlmLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void refreshStatus()
+    const id = window.setInterval(() => void refreshStatus(), 2000)
+    return () => window.clearInterval(id)
   }, [refreshStatus])
 
   const send = async () => {
@@ -99,6 +108,7 @@ export default function App() {
       <HeaderBar
         corpusCount={corpusCount}
         llmReady={llmReady}
+        llmLoading={llmLoading}
         llmHint={llmHint}
         onToggleTheme={toggle}
         themeIsDark={theme === 'dark'}
