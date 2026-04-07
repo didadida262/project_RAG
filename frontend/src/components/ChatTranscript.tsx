@@ -19,20 +19,11 @@ export function ChatTranscript({ messages, warnings, streaming }: Props) {
           ))}
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col">
         {messages.length === 0 ? (
-          <div className="mx-auto flex max-w-xl flex-col gap-3 rounded-2xl border border-dashed border-zinc-300/80 bg-zinc-50/50 p-6 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-400">
-            <p className="font-medium text-zinc-800 dark:text-zinc-200">
-              开始对话
-            </p>
-            <p>
-              语料请在项目根目录的 <code className="rounded bg-zinc-200/80 px-1 py-0.5 text-xs dark:bg-zinc-800">docs/</code>{' '}
-              中维护，并在启动服务前运行{' '}
-              <code className="rounded bg-zinc-200/80 px-1 py-0.5 text-xs dark:bg-zinc-800">./ingest_docs.sh</code>
-              。也可直接提问；若无语料或未配置 GGUF，回答会受限。
-            </p>
-          </div>
+          <div className="min-h-0 flex-1" aria-hidden />
         ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <ul className="mx-auto flex max-w-3xl flex-col gap-4">
             {messages.map((m, i) => (
               <motion.li
@@ -63,16 +54,51 @@ export function ChatTranscript({ messages, warnings, streaming }: Props) {
               </motion.li>
             ))}
             {streaming ? (
-              <li className="flex gap-3 text-xs text-zinc-500 dark:text-zinc-500">
-                <span className="inline-flex gap-1">
-                  <span className="animate-pulse">●</span>
-                  <span className="animate-pulse delay-75">●</span>
-                  <span className="animate-pulse delay-150">●</span>
-                </span>
-                生成中…
-              </li>
+              <motion.li
+                className="flex gap-3"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+                  <FontAwesomeIcon icon={faRobot} />
+                </div>
+                <div className="flex max-w-[85%] items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+                  <span className="inline-flex items-center gap-1.5">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="h-2 w-2 rounded-full bg-cyan-500 dark:bg-cyan-400"
+                        animate={{
+                          y: [0, -5, 0],
+                          opacity: [0.35, 1, 0.35],
+                          scale: [0.92, 1, 0.92],
+                        }}
+                        transition={{
+                          duration: 0.55,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: i * 0.14,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  <motion.span
+                    className="text-sm text-zinc-500 dark:text-zinc-400"
+                    animate={{ opacity: [0.45, 1, 0.45] }}
+                    transition={{
+                      duration: 1.15,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                  >
+                    生成中…
+                  </motion.span>
+                </div>
+              </motion.li>
             ) : null}
           </ul>
+          </div>
         )}
       </div>
     </div>

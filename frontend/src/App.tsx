@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchStatus, streamChat, type ChatMessage } from './api/client'
+import { AppBackground } from './components/AppBackground'
 import { ChatTranscript } from './components/ChatTranscript'
 import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
@@ -15,6 +16,7 @@ export default function App() {
   const [llmReady, setLlmReady] = useState(false)
   const [llmLoading, setLlmLoading] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
+  const streamAbortRef = useRef<AbortController | null>(null)
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -54,6 +56,10 @@ export default function App() {
     return () => window.clearInterval(id)
   }, [refreshStatus, llmReady, llmLoading])
 
+  const stopStream = useCallback(() => {
+    streamAbortRef.current?.abort()
+  }, [])
+
   const send = async () => {
     const text = input.trim()
     if (!text || streaming) return
@@ -65,6 +71,9 @@ export default function App() {
 
     let assistant = ''
     setMessages((m) => [...m, { role: 'assistant', content: '' }])
+
+    const ac = new AbortController()
+    streamAbortRef.current = ac
 
     try {
       await streamChat(
@@ -82,50 +91,71 @@ export default function App() {
             return next
           })
         },
+        ac.signal,
       )
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '请求失败'
-      setWarnings((w) => [...w, msg])
-      setMessages((m) => {
-        const next = [...m]
-        const last = next[next.length - 1]
-        if (last?.role === 'assistant' && !last.content) {
-          next[next.length - 1] = {
-            role: 'assistant',
-            content: `（错误）${msg}`,
+      const aborted = e instanceof DOMException && e.name === 'AbortError'
+      if (aborted) {
+        setMessages((m) => {
+          const next = [...m]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant') {
+            const cur = last.content.trim()
+            next[next.length - 1] = {
+              ...last,
+              content: cur ? `${cur}\n\n（已停止生成）` : '（已停止生成）',
+            }
           }
-        }
-        return next
-      })
+          return next
+        })
+      } else {
+        const msg = e instanceof Error ? e.message : '请求失败'
+        setWarnings((w) => [...w, msg])
+        setMessages((m) => {
+          const next = [...m]
+          const last = next[next.length - 1]
+          if (last?.role === 'assistant' && !last.content) {
+            next[next.length - 1] = {
+              role: 'assistant',
+              content: `（错误）${msg}`,
+            }
+          }
+          return next
+        })
+      }
     } finally {
+      streamAbortRef.current = null
       setStreaming(false)
       void refreshStatus()
     }
   }
 
   return (
-    <div
-      className="flex min-h-screen flex-col bg-gradient-to-b from-zinc-100 via-white to-zinc-100 text-zinc-900 dark:from-zinc-950 dark:via-zinc-950 dark:to-black dark:text-zinc-100"
-    >
+    <div className="relative flex min-h-screen flex-row bg-transparent text-zinc-900 dark:text-zinc-100">
+      <AppBackground />
       <HeaderBar
         corpusCount={corpusCount}
         llmReady={llmReady}
         llmLoading={llmLoading}
         llmHint={llmHint}
+        hasMessages={messages.length > 0}
         onToggleTheme={toggle}
         themeIsDark={theme === 'dark'}
       />
-      <ChatTranscript
-        messages={messages}
-        warnings={warnings}
-        streaming={streaming}
-      />
-      <InputBar
-        value={input}
-        onChange={setInput}
-        onSubmit={send}
-        disabled={streaming}
-      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <ChatTranscript
+          messages={messages}
+          warnings={warnings}
+          streaming={streaming}
+        />
+        <InputBar
+          value={input}
+          onChange={setInput}
+          onSubmit={send}
+          streaming={streaming}
+          onStop={stopStream}
+        />
+      </div>
     </div>
   )
 }

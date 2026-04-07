@@ -9,6 +9,6 @@
     @apply antialiased;
   }
   body {
-    @apply min-h-screen;
+    @apply min-h-screen bg-slate-200/80 dark:bg-[#020617];
   }
 }

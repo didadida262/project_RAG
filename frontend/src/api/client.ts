@@ -46,12 +46,14 @@ export async function streamChat(
   history: ChatMessage[],
   onMeta: (m: StreamMeta) => void,
   onToken: (t: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const url = `${baseURL}/api/chat/stream`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history, stream: true }),
+    signal,
   })
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '')
