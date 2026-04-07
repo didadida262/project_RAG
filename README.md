@@ -25,7 +25,39 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 pip install -r requirements-llm.txt
 ```
 
-首次运行会从 Hugging Face 拉取 `all-MiniLM-L6-v2` 作为向量嵌入模型，需能访问外网或提前缓存。
+首次运行会从 Hugging Face 拉取嵌入模型（默认 `sentence-transformers/all-MiniLM-L6-v2`），需能访问外网或提前缓存。
+
+### 提前下载嵌入模型（推荐，可避免运行时联网）
+
+在一台**能访问 Hugging Face（或已配置镜像）**的机器上执行其一，把模型落到固定目录（示例：`~/models/all-MiniLM-L6-v2`）：
+
+```bash
+pip install -U "huggingface_hub[cli]"
+huggingface-cli download sentence-transformers/all-MiniLM-L6-v2 \
+  --local-dir ~/models/all-MiniLM-L6-v2
+```
+
+或在已激活的 `backend` 虚拟环境里用 Python：
+
+```bash
+python -c "from huggingface_hub import snapshot_download; snapshot_download('sentence-transformers/all-MiniLM-L6-v2', local_dir='/绝对路径/all-MiniLM-L6-v2')"
+```
+
+然后在 `backend/.env` 中设置（路径改成你本机绝对路径）：
+
+```env
+EMBEDDING_MODEL_PATH=/Users/你的用户名/models/all-MiniLM-L6-v2
+```
+
+可注释或删除 `HF_ENDPOINT`；重启 `./run-backend.sh` 后，嵌入模型只从该目录加载，**不再依赖访问 huggingface.co**。
+
+**注意**：若用 `git clone` 拉模型仓库，必须安装 [Git LFS](https://git-lfs.com) 并在模型目录执行 `git lfs pull`，否则 `model.safetensors` 等可能只是指针，运行时会报 `deserializing header` 类错误。更省事的方式是用上文 `huggingface-cli download` 一次性下全文件。
+
+### 常见问题
+
+- **前端 `ETIMEDOUT` / `502`、或终端里 `connect 127.0.0.1:8000` 失败**：先单独启动后端 `./run-backend.sh`，等终端里不再卡在下载后再开前端。后端未监听 8000 时，Vite 代理会超时。
+- **`huggingface.co` 连接超时**：在 `backend/.env` 中设置 `HF_ENDPOINT=https://hf-mirror.com`（或自行准备离线模型目录并设置 `EMBEDDING_MODEL_PATH`，见 `backend/.env.example`），保存后重启后端。
+- **Vite 占用 5173 改用 5174**：无需改配置，后端 CORS 已包含 5174。
 
 ## 前端
 

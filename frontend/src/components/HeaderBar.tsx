@@ -32,10 +32,10 @@ export function HeaderBar({
         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
           语料块 {corpusCount} · {llmReady ? '模型已加载' : '模型未就绪'}
         </p>
-        {!llmReady && llmHint ? (
+        {llmHint ? (
           <p className="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400/90">
             <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5 shrink-0" />
-            <span>{llmHint}</span>
+            <span className="whitespace-pre-wrap break-words">{llmHint}</span>
           </p>
         ) : null}
       </div>

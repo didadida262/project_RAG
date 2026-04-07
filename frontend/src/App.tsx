@@ -26,16 +26,21 @@ export default function App() {
       const s = await fetchStatus()
       setCorpusCount(s.chroma_documents)
       setLlmReady(s.llm.ready)
-      setLlmHint(
-        s.llm.ready
-          ? null
-          : s.llm.error ||
-              (!s.llm.path_set
-                ? '在 backend/.env 设置 GGUF_MODEL_PATH 后重启服务'
-                : null),
-      )
+      const parts: string[] = []
+      if (s.embedding_error) parts.push(s.embedding_error)
+      if (!s.llm.ready) {
+        parts.push(
+          s.llm.error ||
+            (!s.llm.path_set
+              ? '在 backend/.env 设置 GGUF_MODEL_PATH 后重启服务'
+              : ''),
+        )
+      }
+      setLlmHint(parts.filter(Boolean).join('\n') || null)
     } catch {
-      setLlmHint('无法连接后端，请确认已启动 uvicorn（默认 8000）')
+      setLlmHint(
+        '无法连接后端：请另开终端运行 ./run-backend.sh（默认 8000），并等待嵌入模型下载完成。',
+      )
       setLlmReady(false)
     }
   }, [])

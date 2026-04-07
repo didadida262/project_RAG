@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -23,7 +24,25 @@ class Settings(BaseSettings):
     chroma_path: Path = _BACKEND_ROOT / "data" / "chroma"
     upload_dir: Path = _BACKEND_ROOT / "data" / "uploads"
 
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # 嵌入模型：默认从 Hub 拉 all-MiniLM-L6-v2；无法访问 HF 时设 EMBEDDING_MODEL_PATH 指向本机已下载的模型目录
+    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model_path: Optional[str] = None
+
+    # 国内网络可设为 https://hf-mirror.com（见 .env.example）
+    hf_endpoint: Optional[str] = None
+    hf_hub_download_timeout: int = 300
+
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174"
+    )
 
 
 settings = Settings()
+
+
+def apply_hub_env() -> None:
+    """在首次使用 Hugging Face 相关下载前调用。"""
+    if settings.hf_endpoint:
+        os.environ["HF_ENDPOINT"] = settings.hf_endpoint
+    os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = str(settings.hf_hub_download_timeout)

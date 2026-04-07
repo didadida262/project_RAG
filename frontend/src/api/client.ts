@@ -135,6 +135,7 @@ export async function ingestText(text: string, source_name?: string) {
 export async function fetchStatus() {
   const { data } = await api.get<{
     chroma_documents: number
+    embedding_error?: string
     llm: { ready: boolean; error: string | null; path_set: boolean }
   }>('/api/status')
   return data

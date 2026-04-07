@@ -59,7 +59,6 @@ class IngestTextBody(BaseModel):
 def startup():
     settings.chroma_path.mkdir(parents=True, exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
-    chroma_store.get_collection()
 
 
 @app.get("/api/health")
@@ -70,10 +69,24 @@ def health():
 @app.get("/api/status")
 def status():
     st = llama_engine.llm_status()
-    return {
-        "chroma_documents": chroma_store.collection_count(),
+    try:
+        n = chroma_store.collection_count()
+        emb_err: Optional[str] = None
+    except Exception as e:
+        logger.exception("chroma unavailable")
+        n = 0
+        emb_err = (
+            f"向量库/嵌入模型未就绪: {e}。"
+            "若访问 Hugging Face 超时，请在 backend/.env 设置 HF_ENDPOINT=https://hf-mirror.com "
+            "或配置 EMBEDDING_MODEL_PATH 指向本机已下载的 all-MiniLM-L6-v2 目录。"
+        )
+    out: dict = {
+        "chroma_documents": n,
         "llm": st,
     }
+    if emb_err:
+        out["embedding_error"] = emb_err
+    return out
 
 
 @app.post("/api/ingest/text")

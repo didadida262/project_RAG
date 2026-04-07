@@ -4,14 +4,21 @@ from typing import List, Optional, Tuple
 import chromadb
 from chromadb.utils import embedding_functions
 
-from app.config import settings
+from app.config import apply_hub_env, settings
 
 _COLLECTION = "private_corpus"
 
 
 def _embedding_fn():
+    apply_hub_env()
+    # 本地目录优先（需含 config.json 等完整 sentence-transformers 快照）
+    model = (
+        settings.embedding_model_path.strip()
+        if settings.embedding_model_path
+        else settings.embedding_model_name
+    )
     return embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2",
+        model_name=model,
     )
 
 
