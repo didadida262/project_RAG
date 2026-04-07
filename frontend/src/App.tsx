@@ -46,11 +46,13 @@ export default function App() {
     }
   }, [])
 
+  // 加载中要较密轮询；就绪后只偶尔拉一次（更新语料块等），减少 Network 里刷屏的 status
   useEffect(() => {
     void refreshStatus()
-    const id = window.setInterval(() => void refreshStatus(), 2000)
+    const intervalMs = llmLoading || !llmReady ? 3000 : 60_000
+    const id = window.setInterval(() => void refreshStatus(), intervalMs)
     return () => window.clearInterval(id)
-  }, [refreshStatus])
+  }, [refreshStatus, llmReady, llmLoading])
 
   const send = async () => {
     const text = input.trim()

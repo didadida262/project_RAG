@@ -19,18 +19,18 @@ export function HeaderBar({
   onToggleTheme,
   themeIsDark,
 }: Props) {
-  const tagLabel = llmReady
-    ? '模型已加载'
-    : llmLoading
-      ? '模型加载中…'
+  // 加载中优先于「已加载」，避免与接口短暂不一致时误显示绿标
+  const tagLabel = llmLoading
+    ? '模型加载中…'
+    : llmReady
+      ? '模型已加载'
       : '模型未就绪'
 
-  const tagClass =
-    llmReady
+  const tagClass = llmLoading
+    ? 'border-amber-400/70 bg-amber-500/20 text-amber-900 shadow-[0_0_16px_rgba(245,158,11,0.45)] ring-2 ring-amber-400/35 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100 dark:shadow-[0_0_18px_rgba(251,191,36,0.4)] dark:ring-amber-400/30'
+    : llmReady
       ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-800 shadow-[0_0_18px_rgba(34,197,94,0.55),0_0_36px_rgba(34,197,94,0.25)] ring-2 ring-emerald-400/40 dark:border-emerald-500/60 dark:bg-emerald-500/15 dark:text-emerald-200 dark:shadow-[0_0_22px_rgba(52,211,153,0.5),0_0_44px_rgba(52,211,153,0.2)] dark:ring-emerald-400/35'
-      : llmLoading
-        ? 'border-amber-400/70 bg-amber-500/20 text-amber-900 shadow-[0_0_16px_rgba(245,158,11,0.45)] ring-2 ring-amber-400/35 dark:border-amber-500/50 dark:bg-amber-500/15 dark:text-amber-100 dark:shadow-[0_0_18px_rgba(251,191,36,0.4)] dark:ring-amber-400/30'
-        : 'border-red-500/70 bg-red-500/15 text-red-800 shadow-[0_0_18px_rgba(239,68,68,0.55),0_0_36px_rgba(239,68,68,0.22)] ring-2 ring-red-500/40 dark:border-red-500/55 dark:bg-red-500/12 dark:text-red-200 dark:shadow-[0_0_22px_rgba(248,113,113,0.45),0_0_40px_rgba(248,113,113,0.18)] dark:ring-red-500/35'
+      : 'border-red-500/70 bg-red-500/15 text-red-800 shadow-[0_0_18px_rgba(239,68,68,0.55),0_0_36px_rgba(239,68,68,0.22)] ring-2 ring-red-500/40 dark:border-red-500/55 dark:bg-red-500/12 dark:text-red-200 dark:shadow-[0_0_22px_rgba(248,113,113,0.45),0_0_40px_rgba(248,113,113,0.18)] dark:ring-red-500/35'
 
   return (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200/90 bg-white/80 px-4 py-3 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/80">
@@ -51,7 +51,7 @@ export function HeaderBar({
             className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${tagClass}`}
             animate={
               llmLoading
-                ? { opacity: [1, 0.72, 1], scale: [1, 0.98, 1] }
+                ? { opacity: [1, 0.75, 1], scale: [1, 0.99, 1] }
                 : { opacity: 1, scale: 1 }
             }
             transition={

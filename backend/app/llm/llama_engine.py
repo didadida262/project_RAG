@@ -9,6 +9,15 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# 语料有用则引用；没有或不相关时允许用模型自身知识回答，不必再说「语料里没有」。
+SYSTEM_PROMPT_RAG = (
+    "你是本地助手，带有用户提供的「上下文」片段（可能来自其私有文档）。"
+    "若上下文与问题相关，请优先结合上下文作答，可转述或概括。"
+    "若上下文为空、无关或不足以回答，请直接运用你的常识与推理完整回答问题，无需拒绝或强调「语料库未包含」；"
+    "若你同时用了上下文和常识，可简要说明哪些来自文档（可选）。"
+    "回答使用与用户问题相同的语言（如中文问则用中文答）。"
+)
+
 _llm = None
 _load_error: Optional[str] = None
 _cv = threading.Condition()
@@ -106,13 +115,9 @@ def generate_rag_reply(
     if _llm is None:
         raise RuntimeError(_load_error or "LLM not loaded")
 
-    system = (
-        "你是本地私有 RAG 助手。请优先、尽量使用「上下文」中的原文信息作答，可用自己的话概括；"
-        "若上下文中确有相关词句，不要再说「未找到」。仅当上下文与问题明显无关或为空时，再说明语料中未涵盖。"
-    )
-    ctx = context_block.strip() or "(no retrieved context)"
+    ctx = context_block.strip() or "(未检索到相关文档片段)"
     hist = history or []
-    messages: List[Dict[str, str]] = [{"role": "system", "content": system}]
+    messages: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT_RAG}]
     for m in hist:
         role = m.get("role", "user")
         content = m.get("content", "")
@@ -129,18 +134,18 @@ def generate_rag_reply(
         out = _llm.create_chat_completion(
             messages=messages,
             max_tokens=settings.max_new_tokens,
-            temperature=0.2,
+            temperature=0.35,
         )
         choice = out["choices"][0]
         msg = choice.get("message") or {}
         text = msg.get("content") or ""
         return text.strip() or "(empty model response)"
     except Exception:
-        prompt = _fallback_prompt(system, ctx, hist, user_message)
+        prompt = _fallback_prompt(SYSTEM_PROMPT_RAG, ctx, hist, user_message)
         out = _llm(
             prompt,
             max_tokens=settings.max_new_tokens,
-            temperature=0.2,
+            temperature=0.35,
             stop=["<end>", "</s>"],
         )
         return (out.get("choices") or [{}])[0].get("text", "").strip() or "(empty model response)"
@@ -155,13 +160,9 @@ def stream_rag_reply(
     if _llm is None:
         raise RuntimeError(_load_error or "LLM not loaded")
 
-    system = (
-        "你是本地私有 RAG 助手。请优先、尽量使用「上下文」中的原文信息作答，可用自己的话概括；"
-        "若上下文中确有相关词句，不要再说「未找到」。仅当上下文与问题明显无关或为空时，再说明语料中未涵盖。"
-    )
-    ctx = context_block.strip() or "(no retrieved context)"
+    ctx = context_block.strip() or "(未检索到相关文档片段)"
     hist = history or []
-    messages: List[Dict[str, str]] = [{"role": "system", "content": system}]
+    messages: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT_RAG}]
     for m in hist:
         role = m.get("role", "user")
         content = m.get("content", "")
@@ -178,7 +179,7 @@ def stream_rag_reply(
         stream = _llm.create_chat_completion(
             messages=messages,
             max_tokens=settings.max_new_tokens,
-            temperature=0.2,
+            temperature=0.35,
             stream=True,
         )
         for chunk in stream:
@@ -188,11 +189,11 @@ def stream_rag_reply(
             if piece:
                 yield piece
     except Exception:
-        prompt = _fallback_prompt(system, ctx, hist, user_message)
+        prompt = _fallback_prompt(SYSTEM_PROMPT_RAG, ctx, hist, user_message)
         stream = _llm(
             prompt,
             max_tokens=settings.max_new_tokens,
-            temperature=0.2,
+            temperature=0.35,
             stream=True,
             stop=["<end>", "</s>"],
         )

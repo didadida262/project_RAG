@@ -138,7 +138,9 @@ def _build_chat_payload(req: ChatRequest):
     raw_chunks = [h[0] for h in hits]
     warnings: List[str] = []
     if not raw_chunks:
-        warnings.append("未从语料库检索到相关内容，将仅依据对话与模型常识回答（若模型已加载）。")
+        warnings.append(
+            "未从语料库检索到相关片段；模型将主要依据自身知识作答（仍会附带空上下文供参考）。"
+        )
 
     # Reserve part of budget for prompt framing; compress retrieved text
     context_text = compress_rag_context(raw_chunks, settings.max_context_chars)
