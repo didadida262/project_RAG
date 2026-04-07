@@ -107,8 +107,8 @@ def generate_rag_reply(
         raise RuntimeError(_load_error or "LLM not loaded")
 
     system = (
-        "You are a private RAG assistant. Answer using the context when it is relevant. "
-        "If the context is empty or irrelevant, say you do not have that information in the corpus."
+        "你是本地私有 RAG 助手。请优先、尽量使用「上下文」中的原文信息作答，可用自己的话概括；"
+        "若上下文中确有相关词句，不要再说「未找到」。仅当上下文与问题明显无关或为空时，再说明语料中未涵盖。"
     )
     ctx = context_block.strip() or "(no retrieved context)"
     hist = history or []
@@ -156,8 +156,8 @@ def stream_rag_reply(
         raise RuntimeError(_load_error or "LLM not loaded")
 
     system = (
-        "You are a private RAG assistant. Answer using the context when it is relevant. "
-        "If the context is empty or irrelevant, say you do not have that information in the corpus."
+        "你是本地私有 RAG 助手。请优先、尽量使用「上下文」中的原文信息作答，可用自己的话概括；"
+        "若上下文中确有相关词句，不要再说「未找到」。仅当上下文与问题明显无关或为空时，再说明语料中未涵盖。"
     )
     ctx = context_block.strip() or "(no retrieved context)"
     hist = history or []

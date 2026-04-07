@@ -16,17 +16,22 @@ class Settings(BaseSettings):
 
     gguf_model_path: Optional[str] = None
     n_gpu_layers: int = 0
-    max_context_chars: int = 6000
+    max_context_chars: int = 8000
     max_new_tokens: int = 512
     n_ctx: int = 4096
-    rag_top_k: int = 5
+    rag_top_k: int = 12
 
     chroma_path: Path = _BACKEND_ROOT / "data" / "chroma"
     upload_dir: Path = _BACKEND_ROOT / "data" / "uploads"
 
-    # 嵌入模型：默认从 Hub 拉 all-MiniLM-L6-v2；无法访问 HF 时设 EMBEDDING_MODEL_PATH 指向本机已下载的模型目录
-    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # 中文语料勿用纯英文 MiniLM，检索会对不上；默认多语言句向量（换模型后必须 ./ingest_docs.sh --clear 重导入）
+    embedding_model_name: str = (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
     embedding_model_path: Optional[str] = None
+
+    chunk_max_chars: int = 1200
+    chunk_overlap: int = 120
 
     # 国内网络可设为 https://hf-mirror.com（见 .env.example）
     hf_endpoint: Optional[str] = None

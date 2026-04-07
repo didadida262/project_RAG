@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Annotated, List, Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -87,7 +87,24 @@ def status():
     }
     if emb_err:
         out["embedding_error"] = emb_err
+    out["embedding_active"] = (
+        settings.embedding_model_path or settings.embedding_model_name
+    )
     return out
+
+
+@app.get("/api/debug/retrieve")
+def debug_retrieve(
+    q: str = Query(..., min_length=1, description="测试检索的问句"),
+    top_k: int = Query(8, ge=1, le=20),
+):
+    """本地调试用：看该问句实际命中的片段预览与距离（不调用大模型）。"""
+    try:
+        hits = chroma_store.debug_retrieve(q.strip(), top_k)
+    except Exception as e:
+        logger.exception("debug_retrieve")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return {"query": q, "top_k": top_k, "hits": hits}
 
 
 @app.post("/api/ingest/text")
