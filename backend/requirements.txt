@@ -4,3 +4,4 @@ chromadb>=0.5.23
 sentence-transformers>=3.0.0
 python-multipart>=0.0.9
 pydantic-settings>=2.6.0
+# GGUF 推理见 requirements-llm.txt；Windows 勿直接 pip 源码安装，请用 install-llm-windows-cpu.bat（预编译 wheel）

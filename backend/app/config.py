@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     chunk_max_chars: int = 1200
     chunk_overlap: int = 120
 
-    # 国内网络可设为 https://hf-mirror.com（见 .env.example）
+    # 国内网络可设为 https://hf-mirror.com（见 backend/.env）
     hf_endpoint: Optional[str] = None
     hf_hub_download_timeout: int = 300
 

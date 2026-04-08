@@ -29,7 +29,7 @@ def _try_build_llama() -> Tuple[Optional[object], Optional[str]]:
     path = settings.gguf_model_path
     if not path:
         return None, "GGUF_MODEL_PATH is not set"
-    p = Path(path)
+    p = Path(path).expanduser()
     if not p.is_file():
         return None, f"GGUF file not found: {path}"
     try:
@@ -46,7 +46,22 @@ def _try_build_llama() -> Tuple[Optional[object], Optional[str]]:
         return llm, None
     except Exception as e:
         logger.exception("Llama load failed")
-        return None, f"Failed to load model: {e}"
+        msg = f"Failed to load model: {e}"
+        low = str(e).lower()
+        name_low = p.name.lower()
+        looks_gemma4 = (
+            "gemma4" in low
+            or "unknown model architecture" in low
+            or "gemma-4" in name_low
+            or "gemma_4" in name_low
+        )
+        if looks_gemma4:
+            msg += (
+                " | 常见原因：当前 llama-cpp-python 内置的 llama.cpp 尚不支持 Gemma 4（gemma4）架构。"
+                " Windows 预编译 wheel 往往滞后；可关注新版本后重装，或从源码编译 llama-cpp-python，"
+                "或换用 Gemma 2/3、Llama 等 GGUF。详见 README「常见问题」Gemma 4。"
+            )
+        return None, msg
 
 
 def _load_llm() -> None:

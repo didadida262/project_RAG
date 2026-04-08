@@ -1,2 +1,9 @@
-# Install after core deps; may require CMake / Xcode CLI tools to build from source.
+# llama-cpp-python（加载本地 GGUF）
+#
+# Windows：不要只靠本文件直接 pip（易触发 CMake 源码编译失败）。
+#   在 backend 目录双击或运行：install-llm-windows-cpu.bat（CPU 预编译 wheel）
+#   有 NVIDIA + CUDA 时用：install-llm-windows-cuda.bat（按脚本内说明改 cu 版本）
+# macOS / Linux：一般可直接
+#   pip install -r requirements-llm.txt
+# 若编译失败再按官方文档用 CMAKE_ARGS 或预编译 index。
 llama-cpp-python>=0.3.1

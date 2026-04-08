@@ -1,5 +1,6 @@
 import re
 import uuid
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import chromadb
@@ -13,11 +14,10 @@ _COLLECTION = "private_corpus"
 def _embedding_fn():
     apply_hub_env()
     # 本地目录优先（需含 config.json 等完整 sentence-transformers 快照）
-    model = (
-        settings.embedding_model_path.strip()
-        if settings.embedding_model_path
-        else settings.embedding_model_name
-    )
+    if settings.embedding_model_path:
+        model = str(Path(settings.embedding_model_path.strip()).expanduser())
+    else:
+        model = settings.embedding_model_name
     return embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name=model,
     )

@@ -2,8 +2,9 @@
 .DS_Store
 Thumbs.db
 
-# Env
+# Env（项目配置集中在 backend/.env，随仓库维护）
 .env
+!backend/.env
 .env.local
 .env.*.local
 

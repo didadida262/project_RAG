@@ -15,7 +15,7 @@ fi
 source .venv/bin/activate
 
 if [[ ! -f .env ]]; then
-  echo "warning: backend/.env 不存在，可复制 .env.example 并填写 GGUF_MODEL_PATH" >&2
+  echo "warning: backend/.env 不存在，请添加 backend/.env 并填写 GGUF_MODEL_PATH" >&2
 fi
 
 exec uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
