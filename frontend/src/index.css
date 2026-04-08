@@ -72,3 +72,99 @@
     will-change: auto;
   }
 }
+
+/* Empty chat hero — Web3-style gradient + soft neon */
+@keyframes rag-hero-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes rag-hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes rag-hero-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+.rag-hero-empty {
+  position: relative;
+  display: inline-block;
+  max-width: min(90vw, 28rem);
+  animation: rag-hero-float 5.5s ease-in-out infinite;
+}
+
+.rag-hero-empty::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: 140%;
+  height: 180%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(56, 189, 248, 0.22) 0%,
+    rgba(139, 92, 246, 0.12) 42%,
+    transparent 68%
+  );
+  filter: blur(28px);
+  animation: rag-hero-pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.rag-hero-title {
+  position: relative;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  background: linear-gradient(
+    110deg,
+    #3730a3 0%,
+    #0e7490 22%,
+    #5b21b6 48%,
+    #0369a1 72%,
+    #4338ca 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rag-hero-shimmer 6s linear infinite;
+  filter: drop-shadow(0 0 18px rgba(14, 116, 144, 0.35));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rag-hero-empty {
+    animation: none;
+  }
+  .rag-hero-empty::before {
+    animation: none;
+    opacity: 0.65;
+  }
+  .rag-hero-title {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}

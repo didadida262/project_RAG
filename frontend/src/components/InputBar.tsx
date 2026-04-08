@@ -35,7 +35,7 @@ export function InputBar({
   return (
     <div className="shrink-0 bg-transparent px-5 pb-4 pt-2 sm:px-8">
       <div className="mx-auto w-full max-w-3xl">
-        <div className="flex min-h-[40px] items-center gap-2 rounded-[22px] border border-zinc-200/90 bg-white/85 px-2.5 py-1 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35),0_0_0_1px_rgba(15,23,42,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/75 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.75),0_0_0_1px_rgba(255,255,255,0.08)]">
+        <div className="flex min-h-[40px] items-center gap-2 rounded-[22px] border border-zinc-200/90 bg-white/85 px-2.5 py-1 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35),0_0_0_1px_rgba(15,23,42,0.06)] backdrop-blur-xl dark:border-zinc-600/50 dark:bg-zinc-800/85 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.75),0_0_0_1px_rgba(255,255,255,0.1)]">
           <textarea
             ref={ta}
             rows={1}
@@ -49,7 +49,7 @@ export function InputBar({
               }
             }}
             placeholder="有问题，尽管问"
-            className="block max-h-[200px] min-h-8 w-0 flex-1 resize-none bg-transparent py-1 pl-1 text-[15px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 disabled:opacity-60 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            className="block max-h-[200px] min-h-8 w-0 flex-1 resize-none bg-transparent py-1 pl-1 text-[15px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 disabled:opacity-60 dark:text-zinc-50 dark:placeholder:text-zinc-400"
           />
           {streaming ? (
             <button

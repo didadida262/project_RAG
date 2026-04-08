@@ -79,7 +79,20 @@ export function ChatTranscript({
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col">
         {messages.length === 0 ? (
-          <div className="min-h-0 flex-1" aria-hidden />
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-8">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="text-center"
+            >
+              <div className="rag-hero-empty">
+                <h1 className="rag-hero-title text-xl sm:text-2xl md:text-3xl">
+                  需要我为你做些什么？
+                </h1>
+              </div>
+            </motion.div>
+          </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-8">
             <ul className="mx-auto flex w-full max-w-3xl flex-col gap-4">
