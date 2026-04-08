@@ -138,7 +138,6 @@ export default function App() {
         llmReady={llmReady}
         llmLoading={llmLoading}
         llmHint={llmHint}
-        hasMessages={messages.length > 0}
         onToggleTheme={toggle}
         themeIsDark={theme === 'dark'}
       />

@@ -12,3 +12,63 @@
     @apply min-h-screen bg-slate-200/80 dark:bg-[#020617];
   }
 }
+
+/*
+ * Infinite “into the distance” grid: texture scrolls by exactly one cell (40px) per loop
+ * so the pattern tiles seamlessly — reads as continuous forward motion on the tilted plane.
+ */
+@keyframes rag-pgrid-tread {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 40px, 0 40px;
+  }
+}
+
+.rag-pgrid {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 820px;
+  perspective-origin: 50% 34%;
+}
+
+.rag-pgrid-plane {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  /* Large enough that rotated plane never shows a hard edge inside the viewport */
+  width: min(520vw, 6400px);
+  height: 320vh;
+  min-height: 2400px;
+  transform: translate(-50%, 0) rotateX(68deg) rotateY(-5deg) rotateZ(-9deg);
+  transform-origin: 50% 0%;
+  background-repeat: repeat;
+  background-size: 40px 40px;
+  backface-visibility: hidden;
+  will-change: background-position;
+  animation: rag-pgrid-tread 28s linear infinite;
+}
+
+.rag-pgrid-plane--dark {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.11) 1px, transparent 1px);
+  opacity: 0.5;
+}
+
+.rag-pgrid-plane--light {
+  background-image:
+    linear-gradient(rgba(71, 85, 105, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(71, 85, 105, 0.09) 1px, transparent 1px);
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rag-pgrid-plane {
+    animation: none;
+    will-change: auto;
+  }
+}
