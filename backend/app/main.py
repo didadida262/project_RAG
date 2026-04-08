@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -13,7 +14,7 @@ from app.compression.context_compression import (
     compress_rag_context,
     trim_history_messages,
 )
-from app.config import settings
+from app.config import list_gguf_model_entries, settings
 from app.llm import llama_engine
 from app.rag import chroma_store
 
@@ -41,6 +42,8 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=8000)
     history: List[ChatMessage] = Field(default_factory=list)
     stream: bool = False
+    # 与当前后端 GGUF_MODEL_PATH 一致时才接受；省略则不校验
+    model_path: Optional[str] = Field(default=None, max_length=8192)
 
 
 class ChatResponse(BaseModel):
@@ -90,6 +93,7 @@ def status():
     out["embedding_active"] = (
         settings.embedding_model_path or settings.embedding_model_name
     )
+    out["llm_models"] = list_gguf_model_entries()
     return out
 
 
@@ -133,6 +137,27 @@ async def ingest_file(
     return {"chunks_added": n, "total": chroma_store.collection_count(), "filename": name}
 
 
+def _validate_chat_model_path(model_path: Optional[str]) -> None:
+    if not model_path or not str(model_path).strip():
+        return
+    cur = settings.gguf_model_path
+    if not cur:
+        raise HTTPException(
+            status_code=400,
+            detail="后端未配置 GGUF_MODEL_PATH，无法使用 model_path 参数。",
+        )
+    try:
+        want = Path(model_path).expanduser().resolve()
+        have = Path(cur).expanduser().resolve()
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的 model_path") from None
+    if want != have:
+        raise HTTPException(
+            status_code=400,
+            detail="所选模型与当前后端已加载的不一致；请修改 backend/.env 的 GGUF_MODEL_PATH 为该文件并重启服务。",
+        )
+
+
 def _build_chat_payload(req: ChatRequest):
     hits = chroma_store.query_similar(req.message, settings.rag_top_k)
     raw_chunks = [h[0] for h in hits]
@@ -154,6 +179,7 @@ def _build_chat_payload(req: ChatRequest):
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
+    _validate_chat_model_path(req.model_path)
     context_text, warnings, n_chunks, ctx_len, trimmed_hist = _build_chat_payload(req)
     st = llama_engine.llm_status()
     if not st["ready"]:
@@ -187,6 +213,19 @@ def chat(req: ChatRequest):
 
 @app.post("/api/chat/stream")
 def chat_stream(req: ChatRequest):
+    try:
+        _validate_chat_model_path(req.model_path)
+    except HTTPException as e:
+
+        def err_iter_validation():
+            payload = json.dumps(
+                {"type": "error", "detail": str(e.detail)},
+                ensure_ascii=False,
+            )
+            yield f"data: {payload}\n\n"
+
+        return StreamingResponse(err_iter_validation(), media_type="text/event-stream")
+
     context_text, warnings, n_chunks, ctx_len, trimmed_hist = _build_chat_payload(req)
     st = llama_engine.llm_status()
     if not st["ready"]:

@@ -11,6 +11,12 @@ export const api = axios.create({
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
+export type LlmModelOption = {
+  path: string
+  label: string
+  active: boolean
+}
+
 export type ChatResponse = {
   reply: string
   warnings: string[]
@@ -21,11 +27,13 @@ export type ChatResponse = {
 export async function postChat(
   message: string,
   history: ChatMessage[],
+  modelPath?: string,
 ): Promise<ChatResponse> {
   const { data } = await api.post<ChatResponse>('/api/chat', {
     message,
     history,
     stream: false,
+    ...(modelPath ? { model_path: modelPath } : {}),
   })
   return data
 }
@@ -47,12 +55,18 @@ export async function streamChat(
   onMeta: (m: StreamMeta) => void,
   onToken: (t: string) => void,
   signal?: AbortSignal,
+  modelPath?: string,
 ): Promise<void> {
   const url = `${baseURL}/api/chat/stream`
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history, stream: true }),
+    body: JSON.stringify({
+      message,
+      history,
+      stream: true,
+      ...(modelPath ? { model_path: modelPath } : {}),
+    }),
     signal,
   })
   if (!res.ok || !res.body) {
@@ -110,6 +124,7 @@ export async function fetchStatus() {
   const { data } = await api.get<{
     chroma_documents: number
     embedding_error?: string
+    llm_models?: LlmModelOption[]
     llm: {
       ready: boolean
       error: string | null

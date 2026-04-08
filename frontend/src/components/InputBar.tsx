@@ -33,8 +33,8 @@ export function InputBar({
   }, [value])
 
   return (
-    <div className="shrink-0 bg-transparent px-4 pb-4 pt-2">
-      <div className="mx-auto max-w-3xl">
+    <div className="shrink-0 bg-transparent px-5 pb-4 pt-2 sm:px-8">
+      <div className="mx-auto w-full max-w-3xl">
         <div className="flex min-h-[40px] items-center gap-2 rounded-[22px] border border-zinc-200/90 bg-white/85 px-2.5 py-1 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35),0_0_0_1px_rgba(15,23,42,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/75 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.75),0_0_0_1px_rgba(255,255,255,0.08)]">
           <textarea
             ref={ta}

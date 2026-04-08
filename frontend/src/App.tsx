@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchStatus, streamChat, type ChatMessage } from './api/client'
+import {
+  fetchStatus,
+  streamChat,
+  type ChatMessage,
+  type LlmModelOption,
+} from './api/client'
 import { AppBackground } from './components/AppBackground'
+import { ChatToolbar } from './components/ChatToolbar'
 import { ChatTranscript } from './components/ChatTranscript'
 import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
 import { useTheme } from './providers/ThemeProvider'
+
+const MODEL_PATH_STORAGE_KEY = 'private-rag-gguf-path'
 
 export default function App() {
   const { theme, toggle } = useTheme()
@@ -16,6 +24,8 @@ export default function App() {
   const [llmReady, setLlmReady] = useState(false)
   const [llmLoading, setLlmLoading] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
+  const [llmModels, setLlmModels] = useState<LlmModelOption[]>([])
+  const [selectedModelPath, setSelectedModelPath] = useState('')
   const streamAbortRef = useRef<AbortController | null>(null)
 
   const refreshStatus = useCallback(async () => {
@@ -24,6 +34,19 @@ export default function App() {
       setCorpusCount(s.chroma_documents)
       setLlmReady(s.llm.ready)
       setLlmLoading(Boolean(s.llm.loading))
+      const models = s.llm_models ?? []
+      setLlmModels(models)
+      setSelectedModelPath((prev) => {
+        if (models.length === 0) return ''
+        if (prev && models.some((m) => m.path === prev)) return prev
+        try {
+          const stored = localStorage.getItem(MODEL_PATH_STORAGE_KEY)
+          if (stored && models.some((m) => m.path === stored)) return stored
+        } catch {
+          /* ignore */
+        }
+        return models.find((m) => m.active)?.path ?? models[0].path
+      })
       const parts: string[] = []
       if (s.embedding_error) parts.push(s.embedding_error)
       if (s.llm.loading) {
@@ -45,10 +68,10 @@ export default function App() {
       )
       setLlmReady(false)
       setLlmLoading(false)
+      setLlmModels([])
     }
   }, [])
 
-  // 加载中要较密轮询；就绪后只偶尔拉一次（更新语料块等），减少 Network 里刷屏的 status
   useEffect(() => {
     void refreshStatus()
     const intervalMs = llmLoading || !llmReady ? 3000 : 60_000
@@ -60,75 +83,114 @@ export default function App() {
     streamAbortRef.current?.abort()
   }, [])
 
-  const send = async () => {
-    const text = input.trim()
-    if (!text || streaming) return
-    setInput('')
-    const history = [...messages]
-    setMessages((m) => [...m, { role: 'user', content: text }])
-    setStreaming(true)
-    setWarnings([])
+  const runStream = useCallback(
+    async (text: string, history: ChatMessage[]) => {
+      setStreaming(true)
+      setWarnings([])
+      let assistant = ''
+      const ac = new AbortController()
+      streamAbortRef.current = ac
 
-    let assistant = ''
-    setMessages((m) => [...m, { role: 'assistant', content: '' }])
-
-    const ac = new AbortController()
-    streamAbortRef.current = ac
-
-    try {
-      await streamChat(
-        text,
-        history,
-        (meta) => setWarnings(meta.warnings),
-        (t) => {
-          assistant += t
+      try {
+        await streamChat(
+          text,
+          history,
+          (meta) => setWarnings(meta.warnings),
+          (t) => {
+            assistant += t
+            setMessages((m) => {
+              const next = [...m]
+              const last = next[next.length - 1]
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = { ...last, content: assistant }
+              }
+              return next
+            })
+          },
+          ac.signal,
+          selectedModelPath || undefined,
+        )
+      } catch (e) {
+        const aborted = e instanceof DOMException && e.name === 'AbortError'
+        if (aborted) {
           setMessages((m) => {
             const next = [...m]
             const last = next[next.length - 1]
             if (last?.role === 'assistant') {
-              next[next.length - 1] = { ...last, content: assistant }
+              const cur = last.content.trim()
+              next[next.length - 1] = {
+                ...last,
+                content: cur ? `${cur}\n\n（已停止生成）` : '（已停止生成）',
+              }
             }
             return next
           })
-        },
-        ac.signal,
-      )
-    } catch (e) {
-      const aborted = e instanceof DOMException && e.name === 'AbortError'
-      if (aborted) {
-        setMessages((m) => {
-          const next = [...m]
-          const last = next[next.length - 1]
-          if (last?.role === 'assistant') {
-            const cur = last.content.trim()
-            next[next.length - 1] = {
-              ...last,
-              content: cur ? `${cur}\n\n（已停止生成）` : '（已停止生成）',
+        } else {
+          const msg = e instanceof Error ? e.message : '请求失败'
+          setWarnings((w) => [...w, msg])
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant' && !last.content) {
+              next[next.length - 1] = {
+                role: 'assistant',
+                content: `（错误）${msg}`,
+              }
             }
-          }
-          return next
-        })
-      } else {
-        const msg = e instanceof Error ? e.message : '请求失败'
-        setWarnings((w) => [...w, msg])
-        setMessages((m) => {
-          const next = [...m]
-          const last = next[next.length - 1]
-          if (last?.role === 'assistant' && !last.content) {
-            next[next.length - 1] = {
-              role: 'assistant',
-              content: `（错误）${msg}`,
-            }
-          }
-          return next
-        })
+            return next
+          })
+        }
+      } finally {
+        streamAbortRef.current = null
+        setStreaming(false)
+        void refreshStatus()
       }
-    } finally {
-      streamAbortRef.current = null
-      setStreaming(false)
-      void refreshStatus()
-    }
-  }
+    },
+    [refreshStatus, selectedModelPath],
+  )
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || streaming) return
+    setInput('')
+    const history = [...messages]
+    setMessages((m) => [
+      ...m,
+      { role: 'user', content: text },
+      { role: 'assistant', content: '' },
+    ])
+    await runStream(text, history)
+  }, [input, streaming, messages, runStream])
+
+  const regenerateAt = useCallback(
+    async (assistantIndex: number) => {
+      if (streaming) return
+      const m = messages
+      if (m[assistantIndex]?.role !== 'assistant') return
+      const userPair = m[assistantIndex - 1]
+      if (!userPair || userPair.role !== 'user') return
+      const history = m.slice(0, assistantIndex - 1)
+      const text = userPair.content
+      setMessages([...m.slice(0, assistantIndex), { role: 'assistant', content: '' }])
+      await runStream(text, history)
+    },
+    [streaming, messages, runStream],
+  )
+
+  const submitUserEdit = useCallback(
+    async (userIndex: number, newText: string) => {
+      const text = newText.trim()
+      if (!text || streaming) return
+      const history = messages.slice(0, userIndex)
+      setMessages([
+        ...messages.slice(0, userIndex),
+        { role: 'user', content: text },
+        { role: 'assistant', content: '' },
+      ])
+      await runStream(text, history)
+    },
+    [streaming, messages, runStream],
+  )
 
   return (
     <div className="relative flex min-h-screen flex-row bg-transparent text-zinc-900 dark:text-zinc-100">
@@ -142,10 +204,25 @@ export default function App() {
         themeIsDark={theme === 'dark'}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <ChatToolbar
+          models={llmModels}
+          value={selectedModelPath}
+          disabled={streaming}
+          onChange={(path) => {
+            setSelectedModelPath(path)
+            try {
+              localStorage.setItem(MODEL_PATH_STORAGE_KEY, path)
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
         <ChatTranscript
           messages={messages}
           warnings={warnings}
           streaming={streaming}
+          onRegenerate={regenerateAt}
+          onUserEditSubmit={submitUserEdit}
         />
         <InputBar
           value={input}

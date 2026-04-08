@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     )
 
     gguf_model_path: Optional[str] = None
+    # 逗号分隔的多个 .gguf 路径，供前端下拉展示；实际推理仍由 GGUF_MODEL_PATH 加载的模型执行
+    gguf_model_paths: Optional[str] = None
     n_gpu_layers: int = 0
     max_context_chars: int = 8000
     max_new_tokens: int = 512
@@ -44,6 +46,37 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def list_gguf_model_entries() -> List[dict[str, Any]]:
+    """path / label / active，供 /api/status 的 llm_models。"""
+    paths: List[str] = []
+    if settings.gguf_model_paths and str(settings.gguf_model_paths).strip():
+        paths = [p.strip() for p in str(settings.gguf_model_paths).split(",") if p.strip()]
+    elif settings.gguf_model_path:
+        paths = [settings.gguf_model_path]
+
+    active_resolved: Optional[str] = None
+    if settings.gguf_model_path:
+        try:
+            active_resolved = str(Path(settings.gguf_model_path).expanduser().resolve())
+        except Exception:
+            active_resolved = settings.gguf_model_path
+
+    seen: set[str] = set()
+    out: List[dict[str, Any]] = []
+    for p in paths:
+        try:
+            r = str(Path(p).expanduser().resolve())
+        except Exception:
+            r = p
+        if r in seen:
+            continue
+        seen.add(r)
+        label = Path(p).name
+        active = active_resolved is not None and r == active_resolved
+        out.append({"path": p, "label": label, "active": active})
+    return out
 
 
 def apply_hub_env() -> None:
