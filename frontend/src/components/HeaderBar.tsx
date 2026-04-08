@@ -32,7 +32,7 @@ export function HeaderBar({
       : 'border-red-500/70 bg-red-500/15 text-red-800 shadow-[0_0_18px_rgba(239,68,68,0.55),0_0_36px_rgba(239,68,68,0.22)] ring-2 ring-red-500/40 dark:border-red-500/55 dark:bg-red-500/12 dark:text-red-200 dark:shadow-[0_0_22px_rgba(248,113,113,0.45),0_0_40px_rgba(248,113,113,0.18)] dark:ring-red-500/35'
 
   return (
-    <aside className="flex max-h-screen min-h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-zinc-200/90 bg-white/80 px-3 py-4 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/80 sm:w-64">
+    <aside className="flex h-full min-h-0 w-60 shrink-0 flex-col overflow-y-auto border-r border-zinc-200/90 bg-white/80 px-3 py-4 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-950/80 sm:w-64">
       <motion.h1
         className="w-full bg-gradient-to-br from-teal-600 via-violet-600 to-fuchsia-600 bg-clip-text text-center text-xl font-bold leading-[1.15] tracking-wide text-transparent sm:text-2xl dark:from-cyan-200 dark:via-violet-300 dark:to-fuchsia-300 dark:[filter:drop-shadow(0_0_24px_rgba(34,211,238,0.35))]"
         initial={{ opacity: 0, y: -6 }}
@@ -48,31 +48,31 @@ export function HeaderBar({
       />
 
       <section className="pt-4">
-        <h2 className="text-sm font-semibold tracking-wide text-zinc-800 dark:text-zinc-100">
+        <h2 className="text-base font-semibold tracking-wide text-zinc-800 dark:text-zinc-50">
           基本信息
         </h2>
         <dl className="mt-3 space-y-3.5 text-sm leading-snug">
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-zinc-100/90 px-2.5 py-2 dark:bg-zinc-900/70">
-            <dt className="shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-zinc-100/90 px-2.5 py-2 dark:bg-zinc-800/90">
+            <dt className="shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-300">
               语料块
             </dt>
-            <dd className="font-mono text-base font-semibold tabular-nums text-cyan-700 dark:text-cyan-300">
+            <dd className="font-mono text-base font-semibold tabular-nums text-cyan-700 dark:text-cyan-200">
               {corpusCount}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               检索
             </dt>
-            <dd className="mt-1 text-[13px] font-medium text-zinc-800 dark:text-zinc-200">
+            <dd className="mt-1 text-[14px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
               Chroma 向量库 · 本地文档
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               推理
             </dt>
-            <dd className="mt-1 text-[13px] font-medium text-zinc-800 dark:text-zinc-200">
+            <dd className="mt-1 text-[14px] font-medium leading-snug text-zinc-800 dark:text-zinc-100">
               本地 GGUF · 流式输出
             </dd>
           </div>

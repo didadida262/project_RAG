@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import type { ChatMessage } from '../api/client'
 import { ChatGPTAvatar } from './ChatGPTAvatar'
 import { CopyIcon } from './CopyIcon'
+import { MarkdownContent } from './MarkdownContent'
 import { EditIcon } from './EditIcon'
 import { RegenerateIcon } from './RegenerateIcon'
 
@@ -87,14 +88,14 @@ export function ChatTranscript({
               className="text-center"
             >
               <div className="rag-hero-empty">
-                <h1 className="rag-hero-title text-xl sm:text-2xl md:text-3xl">
+                <h1 className="rag-hero-title text-2xl sm:text-3xl md:text-4xl lg:text-[2.75rem] lg:leading-tight">
                   需要我为你做些什么？
                 </h1>
               </div>
             </motion.div>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-8">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-5 py-4 sm:px-8">
             <ul className="mx-auto flex w-full max-w-3xl flex-col gap-4">
               {messages.map((m, i) => {
                 const isStreamingThisAssistant =
@@ -147,9 +148,7 @@ export function ChatTranscript({
                               </span>
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap break-words text-left">
-                              {m.content}
-                            </p>
+                            <MarkdownContent content={m.content} />
                           )}
                         </div>
                       </div>
@@ -221,9 +220,7 @@ export function ChatTranscript({
                             </div>
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap break-words text-left">
-                            {m.content}
-                          </p>
+                          <MarkdownContent content={m.content} compact />
                         )}
                       </div>
 

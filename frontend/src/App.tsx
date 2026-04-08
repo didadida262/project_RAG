@@ -193,7 +193,7 @@ export default function App() {
   )
 
   return (
-    <div className="relative flex min-h-screen flex-row bg-transparent text-zinc-900 dark:text-zinc-100">
+    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
       <AppBackground />
       <HeaderBar
         corpusCount={corpusCount}
@@ -203,7 +203,7 @@ export default function App() {
         onToggleTheme={toggle}
         themeIsDark={theme === 'dark'}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatToolbar
           models={llmModels}
           value={selectedModelPath}

@@ -108,7 +108,7 @@
 .rag-hero-empty {
   position: relative;
   display: inline-block;
-  max-width: min(90vw, 28rem);
+  max-width: min(92vw, 36rem);
   animation: rag-hero-float 5.5s ease-in-out infinite;
 }
 
@@ -133,6 +133,19 @@
   pointer-events: none;
 }
 
+/* Dark mode: very soft halo only — strong ::before + clipped text reads as one bright smear. */
+.dark .rag-hero-empty::before {
+  width: 100%;
+  height: 130%;
+  opacity: 0.22;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(56, 189, 248, 0.1) 0%,
+    transparent 62%
+  );
+  filter: blur(22px);
+}
+
 .rag-hero-title {
   position: relative;
   margin: 0;
@@ -153,6 +166,26 @@
   color: transparent;
   animation: rag-hero-shimmer 6s linear infinite;
   filter: drop-shadow(0 0 18px rgba(14, 116, 144, 0.35));
+}
+
+/*
+ * Dark mode: do NOT use background-clip:text here. With light pastel gradients, glyphs
+ * merge into one bright band (“一坨”) in WebKit/Chromium; clip failures also yield blank text.
+ * Solid fill + light text-shadow keeps strokes crisp on dark UI.
+ */
+.dark .rag-hero-title {
+  background: none;
+  background-image: none;
+  background-size: auto;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: #f1f5f9;
+  -webkit-text-fill-color: #f1f5f9;
+  animation: none;
+  filter: none;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 0 20px rgba(34, 211, 238, 0.18);
 }
 
 @media (prefers-reduced-motion: reduce) {
