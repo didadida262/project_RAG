@@ -150,10 +150,10 @@ export function InputBar({
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={menuOpen ? 'x' : 'plus'}
-                initial={{ opacity: 0, scale: 0.75, rotate: menuOpen ? -45 : 45 }}
+                initial={{ opacity: 0, scale: 0.82, rotate: menuOpen ? -28 : 28 }}
                 animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 24 }}
+                exit={{ opacity: 0, scale: 0.88 }}
+                transition={{ type: 'tween', duration: 0.11, ease: [0.22, 1, 0.36, 1] }}
                 className="inline-flex"
               >
                 <FontAwesomeIcon

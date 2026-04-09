@@ -115,12 +115,14 @@ export function ChatTranscript({
                   }
                 >
                   {m.role === 'assistant' ? (
-                    <>
+                    <div
+                      className="w-full min-w-0 rounded-2xl border border-zinc-200/90 bg-zinc-50/95 p-4 shadow-sm sm:p-5 dark:border-zinc-700/55 dark:bg-zinc-900/75 dark:shadow-[0_8px_32px_-14px_rgba(0,0,0,0.75)]"
+                    >
                       <div className="flex w-full min-w-0 items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-teal-400/45 bg-teal-600 text-white shadow-sm dark:border-emerald-400/40 dark:bg-emerald-900/90 dark:shadow-[0_0_18px_rgba(52,211,153,0.22)]">
                           <ChatGPTAvatar className="h-5 w-5" />
                         </div>
-                        <div className="min-w-0 flex-1 text-left text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+                        <div className="flex min-w-0 flex-1 flex-col gap-2 text-left text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
                           {isStreamingThisAssistant && !m.content ? (
                             <div
                               className="flex min-h-9 items-center"
@@ -150,44 +152,44 @@ export function ChatTranscript({
                           ) : (
                             <MarkdownContent content={m.content} />
                           )}
+                          {!isStreamingThisAssistant ? (
+                            <div className="flex flex-wrap items-center gap-0.5 opacity-70 transition group-hover:opacity-100 focus-within:opacity-100">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const ok = await copyToClipboard(m.content)
+                                  if (ok) flashCopied(`c-${i}`)
+                                }}
+                                className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-200"
+                                aria-label="复制"
+                                title="复制"
+                              >
+                                <CopyIcon className="h-4 w-4" />
+                              </button>
+                              {copiedKey === `c-${i}` ? (
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                                  已复制
+                                </span>
+                              ) : null}
+                              <button
+                                type="button"
+                                disabled={
+                                  streaming ||
+                                  i < 1 ||
+                                  messages[i - 1]?.role !== 'user'
+                                }
+                                onClick={() => onRegenerate(i)}
+                                className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-200"
+                                aria-label="重新生成"
+                                title="重新生成"
+                              >
+                                <RegenerateIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      {!isStreamingThisAssistant ? (
-                        <div className="flex w-full items-center gap-0.5 pl-12 pr-0.5 opacity-70 transition group-hover:opacity-100 focus-within:opacity-100">
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const ok = await copyToClipboard(m.content)
-                              if (ok) flashCopied(`c-${i}`)
-                            }}
-                            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                            aria-label="复制"
-                            title="复制"
-                          >
-                            <CopyIcon className="h-4 w-4" />
-                          </button>
-                          {copiedKey === `c-${i}` ? (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                              已复制
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            disabled={
-                              streaming ||
-                              i < 1 ||
-                              messages[i - 1]?.role !== 'user'
-                            }
-                            onClick={() => onRegenerate(i)}
-                            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                            aria-label="重新生成"
-                            title="重新生成"
-                          >
-                            <RegenerateIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
+                    </div>
                   ) : (
                     <div className="flex min-w-0 max-w-[85%] flex-col gap-1.5 items-end">
                       <div
