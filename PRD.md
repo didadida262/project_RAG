@@ -89,7 +89,7 @@
 
 | ID | 需求描述 | 优先级 |
 |----|----------|--------|
-| N-01 | 项目目录：`frontend` 存放前端代码，`backend` 存放后端代码 | P0 |
+| N-01 | 项目目录：`src/main` 主进程、`src/preload` 预加载、`src/renderer` React（Vite）；后端由外部 API 提供 | P0 |
 | N-02 | 新增 `.gitignore`，包含前后端及本地模型、向量库、环境文件等常见忽略项 | P0 |
 
 ### 4.3 性能与可靠性
@@ -150,7 +150,7 @@ flowchart LR
 
 ## 8. 里程碑建议（供排期参考）
 
-1. **M1**：仓库结构、`frontend`/`backend` 骨架、`.gitignore`、主题 Provider 与基础布局。
+1. **M1**：Electron + `src/` 分层、`.gitignore`、主题 Provider 与基础布局。
 2. **M2**：Chroma 入库与检索 API、与前端问答串联。
 3. **M3**：接入 llama-cpp-python + Gemma GGUF，端到端 RAG。
 4. **M4**：上下文压缩模块联调、8GB 显存压测与参数调优。
@@ -165,7 +165,7 @@ flowchart LR
 | 主题与 Font Awesome | §3.4 |
 | .gitignore | §4.2 |
 | 上下布局 | §3.3 |
-| frontend/backend 目录 | §4.2 |
+| src/main · preload · renderer | §4.2 |
 
 ---
 

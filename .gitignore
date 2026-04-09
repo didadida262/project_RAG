@@ -2,54 +2,31 @@
 .DS_Store
 Thumbs.db
 
-# Env（项目配置集中在 backend/.env，随仓库维护）
+# Env
 .env
-!backend/.env
 .env.local
 .env.*.local
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-backend/.venv/
-ENV/
-*.egg-info/
-.eggs/
-dist/
-build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Node / frontend
-frontend/node_modules/
-frontend/dist/
+# Node
+node_modules/
+release/
 *.log
 npm-debug.log*
+
+# Build
+src/renderer/dist/
+build/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 
-# 语料内容默认不入库（保留目录说明）
+# Docs sample content (keep structure)
 docs/*
 !docs/.gitkeep
 !docs/README.md
 
-# Local data (Chroma, uploads)
-backend/data/
-**/chroma_data/
-
-# GGUF models (large binaries)
+# Large local assets
 *.gguf
 models/
-
-# Coverage
-htmlcov/
-.coverage

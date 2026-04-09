@@ -1,21 +1,5 @@
 # 语料目录
 
-将需要检索的 **`.txt` / `.md`** 放在本目录（可含子文件夹）。
+可将需要归档或检索的 **`.txt` / `.md`** 放在本目录（可含子文件夹）。
 
-在 `backend/.env` 中配置好 `EMBEDDING_MODEL_PATH` 等后，在项目根目录执行入库：
-
-**Windows：**
-
-```bat
-ingest_docs.bat
-```
-
-**macOS / Linux：**
-
-```bash
-./ingest_docs.sh
-```
-
-若曾导入过、想**整体重来**（清空向量库后再导入）：`ingest_docs.bat --clear` 或 `./ingest_docs.sh --clear`。
-
-然后再启动后端与前端（Windows：`run-backend.bat`、`run-frontend.bat`；其他：`./run-backend.sh`、`./run-frontend.sh`）。
+本仓库为 **Electron + 前端壳**，不再包含入库脚本与向量库服务；若你使用自建或第三方 RAG API，请按其文档完成语料导入与索引。

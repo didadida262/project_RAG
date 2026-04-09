@@ -1,0 +1,251 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  fetchStatus,
+  setAuthCredentials,
+  streamChat,
+  type ChatMessage,
+  type LlmModelOption,
+} from './api/client'
+import { AppBackground } from './components/AppBackground'
+import { ChatToolbar } from './components/ChatToolbar'
+import { ChatTranscript } from './components/ChatTranscript'
+import { HeaderBar } from './components/HeaderBar'
+import { InputBar } from './components/InputBar'
+import { useTheme } from './providers/ThemeProvider'
+
+const MODEL_PATH_STORAGE_KEY = 'private-rag-gguf-path'
+const AUTH_TOKEN_STORAGE_KEY = 'private-rag-header-token'
+const API_KEY_STORAGE_KEY = 'private-rag-header-api-key'
+
+export default function App() {
+  const { theme, toggle } = useTheme()
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [streaming, setStreaming] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [corpusCount, setCorpusCount] = useState(0)
+  const [llmReady, setLlmReady] = useState(false)
+  const [llmLoading, setLlmLoading] = useState(false)
+  const [llmModels, setLlmModels] = useState<LlmModelOption[]>([])
+  const [selectedModelPath, setSelectedModelPath] = useState('')
+  const [authToken, setAuthToken] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const streamAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    try {
+      setAuthToken(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ?? '')
+      setApiKey(localStorage.getItem(API_KEY_STORAGE_KEY) ?? '')
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    setAuthCredentials(authToken, apiKey)
+  }, [authToken, apiKey])
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const s = await fetchStatus()
+      setCorpusCount(s.chroma_documents)
+      setLlmReady(s.llm.ready)
+      setLlmLoading(Boolean(s.llm.loading))
+      const models = s.llm_models ?? []
+      setLlmModels(models)
+      setSelectedModelPath((prev) => {
+        if (models.length === 0) return ''
+        if (prev && models.some((m) => m.path === prev)) return prev
+        try {
+          const stored = localStorage.getItem(MODEL_PATH_STORAGE_KEY)
+          if (stored && models.some((m) => m.path === stored)) return stored
+        } catch {
+          /* ignore */
+        }
+        return models.find((m) => m.active)?.path ?? models[0].path
+      })
+    } catch {
+      setLlmReady(false)
+      setLlmLoading(false)
+      setLlmModels([])
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshStatus()
+    const intervalMs = llmLoading || !llmReady ? 3000 : 60_000
+    const id = window.setInterval(() => void refreshStatus(), intervalMs)
+    return () => window.clearInterval(id)
+  }, [refreshStatus, llmReady, llmLoading])
+
+  const stopStream = useCallback(() => {
+    streamAbortRef.current?.abort()
+  }, [])
+
+  const runStream = useCallback(
+    async (text: string, history: ChatMessage[]) => {
+      setStreaming(true)
+      setWarnings([])
+      let assistant = ''
+      const ac = new AbortController()
+      streamAbortRef.current = ac
+
+      try {
+        await streamChat(
+          text,
+          history,
+          (meta) => setWarnings(meta.warnings),
+          (t) => {
+            assistant += t
+            setMessages((m) => {
+              const next = [...m]
+              const last = next[next.length - 1]
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = { ...last, content: assistant }
+              }
+              return next
+            })
+          },
+          ac.signal,
+          selectedModelPath || undefined,
+        )
+      } catch (e) {
+        const aborted = e instanceof DOMException && e.name === 'AbortError'
+        if (aborted) {
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant') {
+              const cur = last.content.trim()
+              next[next.length - 1] = {
+                ...last,
+                content: cur ? `${cur}\n\n（已停止生成）` : '（已停止生成）',
+              }
+            }
+            return next
+          })
+        } else {
+          const msg = e instanceof Error ? e.message : '请求失败'
+          setWarnings((w) => [...w, msg])
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant' && !last.content) {
+              next[next.length - 1] = {
+                role: 'assistant',
+                content: `（错误）${msg}`,
+              }
+            }
+            return next
+          })
+        }
+      } finally {
+        streamAbortRef.current = null
+        setStreaming(false)
+        void refreshStatus()
+      }
+    },
+    [refreshStatus, selectedModelPath],
+  )
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || streaming) return
+    setInput('')
+    const history = [...messages]
+    setMessages((m) => [
+      ...m,
+      { role: 'user', content: text },
+      { role: 'assistant', content: '' },
+    ])
+    await runStream(text, history)
+  }, [input, streaming, messages, runStream])
+
+  const regenerateAt = useCallback(
+    async (assistantIndex: number) => {
+      if (streaming) return
+      const m = messages
+      if (m[assistantIndex]?.role !== 'assistant') return
+      const userPair = m[assistantIndex - 1]
+      if (!userPair || userPair.role !== 'user') return
+      const history = m.slice(0, assistantIndex - 1)
+      const text = userPair.content
+      setMessages([...m.slice(0, assistantIndex), { role: 'assistant', content: '' }])
+      await runStream(text, history)
+    },
+    [streaming, messages, runStream],
+  )
+
+  const submitUserEdit = useCallback(
+    async (userIndex: number, newText: string) => {
+      const text = newText.trim()
+      if (!text || streaming) return
+      const history = messages.slice(0, userIndex)
+      setMessages([
+        ...messages.slice(0, userIndex),
+        { role: 'user', content: text },
+        { role: 'assistant', content: '' },
+      ])
+      await runStream(text, history)
+    },
+    [streaming, messages, runStream],
+  )
+
+  return (
+    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
+      <AppBackground />
+      <HeaderBar
+        corpusCount={corpusCount}
+        onToggleTheme={toggle}
+        themeIsDark={theme === 'dark'}
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ChatToolbar
+          models={llmModels}
+          value={selectedModelPath}
+          disabled={streaming}
+          authToken={authToken}
+          apiKey={apiKey}
+          onAuthTokenChange={(v) => {
+            setAuthToken(v)
+            try {
+              localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, v)
+            } catch {
+              /* ignore */
+            }
+          }}
+          onApiKeyChange={(v) => {
+            setApiKey(v)
+            try {
+              localStorage.setItem(API_KEY_STORAGE_KEY, v)
+            } catch {
+              /* ignore */
+            }
+          }}
+          onChange={(path) => {
+            setSelectedModelPath(path)
+            try {
+              localStorage.setItem(MODEL_PATH_STORAGE_KEY, path)
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+        <ChatTranscript
+          messages={messages}
+          warnings={warnings}
+          streaming={streaming}
+          onRegenerate={regenerateAt}
+          onUserEditSubmit={submitUserEdit}
+        />
+        <InputBar
+          value={input}
+          onChange={setInput}
+          onSubmit={send}
+          streaming={streaming}
+          onStop={stopStream}
+        />
+      </div>
+    </div>
+  )
+}
