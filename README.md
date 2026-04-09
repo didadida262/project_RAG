@@ -1,43 +1,61 @@
 # Private RAG（Electron 桌面端）
 
-基于 **Electron + React（Vite）** 的桌面壳；界面与原先前端一致。本仓库**不再包含** Python / FastAPI 后端，需自行部署 API 或对接其他服务。
+基于 **Electron + React（Vite）**，企业 API 经本机 **Express 反代** 转发到公网，避免浏览器跨域限制。
 
-## 目录结构（常见 Electron + Vite 布局）
+## 目录结构
 
 ```
+server/
+  index.mjs       # Express：/enterprise → 公网（默认同下）
 src/
   main/           # Electron 主进程
-  preload/        # 预加载（向渲染进程暴露安全 API）
-  renderer/       # React 界面（Vite 工程：index.html、src、public）
+  preload/
+  renderer/       # React + Vite
 release/          # electron-builder 输出（gitignore）
 ```
 
-## 开发
+## 开发（推荐）
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认 **`npm run dev`**（或 **`yarn dev`**）会同时启动 Vite 并打开 **Electron 桌面窗口**（与 `npm run electron:dev` 相同）。若只想用浏览器调试界面、不要桌面壳，请用 **`npm run dev:web`**，再打开 `http://127.0.0.1:5173`。
+**`npm run dev`** 会并行启动：
 
-- 开发服务器固定 **`127.0.0.1:5173`**（`strictPort`），与 `wait-on`、Electron 一致。若提示端口占用，请先结束之前的 Vite/Electron，例如：  
-  `lsof -i :5173` 查看进程，`kill <PID>`（或关掉仍占用该端口的终端）。
-- `/api` 会代理到 `http://127.0.0.1:8000`（见 `src/renderer/vite.config.ts`），便于本地另有后端时使用。
+1. **反代服务** `http://127.0.0.1:8787`（`server/index.mjs`）→ 默认上游 `http://58.222.41.68`
+2. **Vite** `http://127.0.0.1:5173`
+3. **Electron**（待上述就绪后打开）
 
-## 仅构建界面
+前端请求统一打到 **`127.0.0.1:8787/enterprise/...`**，由 Node 转发，无 CORS 问题。
+
+仅浏览器调试 UI（无 Electron）时，**仍需先起反代**，否则企业接口会失败：
+
+```bash
+# 终端 1
+npm run server
+
+# 终端 2
+npm run dev:web
+```
+
+## 仅构建前端
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## 桌面壳（使用已构建的 `src/renderer/dist`）
+`preview` 下同样需 **`npm run server`** 在 8787 端口运行，或配置 **`VITE_ENTERPRISE_API_URL`** 直连已开放 CORS 的地址。
+
+## 桌面壳（本地 dist）
 
 ```bash
 npm run build
-npm run electron:start
+npm run electron:start:proxy
 ```
+
+`electron:start:proxy` = 反代 + Electron。若只用 **`electron:start`**，须**另开终端**先执行 **`npm run server`**。
 
 ## 打安装包
 
@@ -45,21 +63,26 @@ npm run electron:start
 npm run electron:build
 ```
 
-## 配置 API 基地址
+安装包内已包含 `server/index.mjs`；运行桌面应用前仍建议在安装目录旁能通过 Node 执行反代（或从源码目录 `npm run server`），与当前架构一致。
 
-| 场景 | 方式 |
+## 环境变量
+
+| 变量 | 作用 |
 |------|------|
-| 浏览器 / `npm run dev:web` | 环境变量 `VITE_API_URL`（空则走 Vite 代理 `/api`） |
-| Electron | 环境变量 `PRIVATE_RAG_API_URL`（默认 `http://127.0.0.1:8000`），由主进程传给预加载脚本 |
+| **`PROXY_PORT`** | 反代监听端口，默认 `8787` |
+| **`PUBLIC_API_TARGET`** | 上游公网根地址，默认 `http://58.222.41.68` |
+| **`VITE_API_PROXY_URL`** | 前端使用的反代根地址，默认 `http://127.0.0.1:8787`（写入构建） |
+| **`VITE_ENTERPRISE_API_URL`** | 若设置，前端**直连**该地址（不经过反代）；仅当上游已配置 CORS 时使用 |
 
 ## 脚本摘要
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | Vite + Electron（默认桌面开发） |
-| `npm run dev:web` | 仅 Vite（浏览器打开 5173） |
+| `npm run server` | 仅启动 Express 反代（8787） |
+| `npm run dev` | 反代 + Vite + Electron |
+| `npm run dev:web` | 仅 Vite（需自行先 `npm run server`） |
 | `npm run build` | 类型检查 + 构建渲染进程 |
-| `npm run electron:dev` | 同 `npm run dev` |
-| `npm run electron:start` | 仅 Electron（需先 `build`） |
-| `npm run electron:build` | 构建界面 + electron-builder |
-| `npm run lint` | ESLint（`src/renderer`） |
+| `npm run electron:start` | 仅 Electron（需已 build 且反代已开） |
+| `npm run electron:start:proxy` | 反代 + Electron |
+| `npm run electron:build` | 构建 + electron-builder |
+| `npm run lint` | ESLint |

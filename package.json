@@ -6,21 +6,25 @@
   "type": "module",
   "main": "src/main/index.cjs",
   "scripts": {
-    "dev": "concurrently -k \"npm run dev:web\" \"wait-on -t 120000 http://127.0.0.1:5173 && electron .\"",
+    "server": "node server/index.mjs",
+    "dev": "concurrently -k \"npm run server\" \"npm run dev:web\" \"wait-on -t 120000 http://127.0.0.1:5173 http://127.0.0.1:8787/health && electron .\"",
     "dev:web": "vite --config src/renderer/vite.config.ts",
     "build": "tsc -b src/renderer/tsconfig.json && vite build --config src/renderer/vite.config.ts",
     "preview": "vite preview --config src/renderer/vite.config.ts",
     "lint": "eslint \"src/renderer/**/*.{ts,tsx}\"",
     "electron:dev": "npm run dev",
-    "electron:start": "electron .",
+    "electron:start": "PRIVATE_RAG_ELECTRON_USE_DIST=1 electron .",
+    "electron:start:proxy": "concurrently -k \"npm run server\" \"wait-on -t 60000 http://127.0.0.1:8787/health && PRIVATE_RAG_ELECTRON_USE_DIST=1 electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.2.0",
     "@fortawesome/free-solid-svg-icons": "^7.2.0",
     "@fortawesome/react-fontawesome": "^3.3.0",
-    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "framer-motion": "^12.38.0",
+    "http-proxy-middleware": "^3.0.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
@@ -59,17 +63,27 @@
       "src/main/**/*.cjs",
       "src/preload/**/*.cjs",
       "src/renderer/dist/**/*",
+      "server/**/*.mjs",
       "package.json"
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis", "zip"]
+      "target": [
+        "nsis",
+        "zip"
+      ]
     },
     "linux": {
-      "target": ["AppImage", "zip"],
+      "target": [
+        "AppImage",
+        "zip"
+      ],
       "category": "Office"
     }
   }
