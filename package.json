@@ -2,7 +2,7 @@
   "name": "private-rag",
   "private": true,
   "version": "1.0.0",
-  "description": "Private RAG — Electron + React",
+  "description": "RAG系统 — Electron + React",
   "type": "module",
   "main": "src/main/index.cjs",
   "scripts": {
@@ -15,7 +15,9 @@
     "electron:dev": "npm run dev",
     "electron:start": "PRIVATE_RAG_ELECTRON_USE_DIST=1 electron .",
     "electron:start:proxy": "concurrently -k \"npm run server\" \"wait-on -t 60000 http://127.0.0.1:8787/health && PRIVATE_RAG_ELECTRON_USE_DIST=1 electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "clean:release": "node -e \"require('node:fs').rmSync('release',{recursive:true,force:true});\"",
+    "electron:build": "npm run build && npm run clean:release && electron-builder",
+    "build:mac": "npm run build && npm run clean:release && electron-builder --mac"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.2.0",
@@ -55,7 +57,8 @@
   },
   "build": {
     "appId": "com.private-rag.desktop",
-    "productName": "Private RAG",
+    "productName": "RAG系统",
+    "executableName": "RAGSystem",
     "directories": {
       "output": "release"
     },

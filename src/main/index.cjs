@@ -55,7 +55,7 @@ function createWindow() {
     win.loadURL(devServerUrl).catch((err) => {
       console.error(err)
       dialog.showErrorBox(
-        'Private RAG',
+        'RAG系统',
         `无法加载开发服务器 ${devServerUrl}。请用 npm run / yarn dev 同时启动 Vite；若端口被占用请先结束占用 5173 的进程。`,
       )
     })
@@ -63,7 +63,7 @@ function createWindow() {
     win.loadFile(distIndex).catch((err) => {
       console.error(err)
       dialog.showErrorBox(
-        'Private RAG',
+        'RAG系统',
         '未找到渲染进程构建产物。请在项目根目录执行：npm run build',
       )
     })

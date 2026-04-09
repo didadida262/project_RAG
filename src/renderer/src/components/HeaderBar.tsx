@@ -19,7 +19,7 @@ export function HeaderBar({ onToggleTheme, themeIsDark, children }: Props) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 28 }}
       >
-        Private RAG
+        RAG系统
       </motion.h1>
 
       <div
