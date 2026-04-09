@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 type Props = {
   onToggleTheme: () => void
   themeIsDark: boolean
-  /** 侧栏标题下方的企业配置区（开搞 / token / api_key / 模型） */
+  /** 侧栏底部、主题切换上方的企业配置区（开搞 / token / api_key / 模型） */
   children?: ReactNode
 }
 
@@ -27,11 +27,11 @@ export function HeaderBar({ onToggleTheme, themeIsDark, children }: Props) {
         aria-hidden
       />
 
+      <div className="min-h-0 min-w-0 flex-1" aria-hidden />
+
       {children}
 
-      <div className="min-h-4 flex-1 shrink-0" aria-hidden />
-
-      <div className="mt-auto flex justify-end border-t border-zinc-200/80 pt-4 dark:border-zinc-800/80">
+      <div className="flex shrink-0 justify-end border-t border-zinc-200/80 pt-4 dark:border-zinc-800/80">
         <button
           type="button"
           onClick={onToggleTheme}

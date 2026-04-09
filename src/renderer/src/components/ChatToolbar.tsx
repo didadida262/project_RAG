@@ -69,81 +69,108 @@ export function ChatToolbar({
     ? 'flex w-full min-w-0 flex-col gap-3'
     : 'flex min-w-0 flex-wrap items-center gap-3 pb-0.5 sm:flex-nowrap sm:overflow-x-auto sm:[-ms-overflow-style:none] sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden'
 
+  const loadButton = (
+    <button
+      type="button"
+      className={loadBtnClass}
+      disabled={disabled || enterpriseLoading}
+      onClick={() => onLoadEnterpriseData()}
+      aria-label="拉取 api_key 与模型列表"
+      title="根据当前 token（与 api_key）请求企业接口（开搞）"
+    >
+      {enterpriseLoading ? '开搞中…' : '开搞'}
+    </button>
+  )
+
+  const tokenField = (
+    <label className={fieldClass}>
+      <span className={labelClass}>token</span>
+      <input
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="可选"
+        className={inputClass}
+        value={authToken}
+        disabled={disabled}
+        onChange={(e) => onAuthTokenChange(e.target.value)}
+        onBlur={onTokenBlur}
+        aria-label="请求头 token"
+      />
+    </label>
+  )
+
+  const apiKeyField = (
+    <label className={fieldClass}>
+      <span className={labelClass}>api_key</span>
+      <select
+        className={compactSelectClass}
+        value={
+          pickLocked
+            ? ''
+            : apiKeyOptions.some((o) => o.value === apiKey)
+              ? apiKey
+              : (apiKeyOptions[0]?.value ?? '')
+        }
+        disabled={disabled || pickLocked}
+        onChange={(e) => onApiKeyChange(e.target.value)}
+        aria-label="请求头 api_key"
+      >
+        {apiKeyOptions.map((o) => (
+          <option key={`${o.label}:${o.value}`} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+
+  const modelField = (
+    <label className={fieldClass}>
+      <span className={labelClass}>模型</span>
+      <select
+        className={compactSelectClass}
+        value={pickLocked || empty ? '' : value}
+        disabled={disabled || pickLocked || empty}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="选择推理模型"
+      >
+        {pickLocked ? (
+          <option value="">填写 token 后点击「开搞」获取模型</option>
+        ) : empty ? (
+          <option value="">
+            未获取到模型列表（检查 token / 企业接口）
+          </option>
+        ) : (
+          models.map((m) => (
+            <option key={m.path} value={m.path}>
+              {m.label}
+              {m.active ? ' · 已加载' : ''}
+            </option>
+          ))
+        )}
+      </select>
+    </label>
+  )
+
   return (
     <div className={outerClass}>
       <div className={innerClass}>
-        <button
-          type="button"
-          className={loadBtnClass}
-          disabled={disabled || enterpriseLoading}
-          onClick={() => onLoadEnterpriseData()}
-          aria-label="拉取 api_key 与模型列表"
-          title="根据当前 token（与 api_key）请求企业接口（开搞）"
-        >
-          {enterpriseLoading ? '开搞中…' : '开搞'}
-        </button>
-        <label className={fieldClass}>
-          <span className={labelClass}>token</span>
-          <input
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="可选"
-            className={inputClass}
-            value={authToken}
-            disabled={disabled}
-            onChange={(e) => onAuthTokenChange(e.target.value)}
-            onBlur={onTokenBlur}
-            aria-label="请求头 token"
-          />
-        </label>
-        <label className={fieldClass}>
-          <span className={labelClass}>api_key</span>
-          <select
-            className={compactSelectClass}
-            value={
-              pickLocked
-                ? ''
-                : apiKeyOptions.some((o) => o.value === apiKey)
-                  ? apiKey
-                  : (apiKeyOptions[0]?.value ?? '')
-            }
-            disabled={disabled || pickLocked}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            aria-label="请求头 api_key"
-          >
-            {apiKeyOptions.map((o) => (
-              <option key={`${o.label}:${o.value}`} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={fieldClass}>
-          <span className={labelClass}>模型</span>
-          <select
-            className={compactSelectClass}
-            value={pickLocked || empty ? '' : value}
-            disabled={disabled || pickLocked || empty}
-            onChange={(e) => onChange(e.target.value)}
-            aria-label="选择推理模型"
-          >
-            {pickLocked ? (
-              <option value="">填写 token 后点击「开搞」获取模型</option>
-            ) : empty ? (
-              <option value="">
-                未获取到模型列表（检查 token / 企业接口）
-              </option>
-            ) : (
-              models.map((m) => (
-                <option key={m.path} value={m.path}>
-                  {m.label}
-                  {m.active ? ' · 已加载' : ''}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
+        {isSidebar ? (
+          <>
+            {tokenField}
+            {apiKeyField}
+            {modelField}
+            {loadButton}
+          </>
+        ) : (
+          <>
+            {loadButton}
+            {tokenField}
+            {apiKeyField}
+            {modelField}
+          </>
+        )}
       </div>
     </div>
   )
