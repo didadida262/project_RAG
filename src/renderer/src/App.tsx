@@ -318,6 +318,48 @@ export default function App() {
     [streaming, messages, runStream],
   )
 
+  const handleFilesChosen = useCallback(async (files: File[]) => {
+    const textExts = new Set([
+      'txt',
+      'md',
+      'csv',
+      'json',
+      'log',
+      'xml',
+      'html',
+      'htm',
+      'tsv',
+    ])
+    const maxBytes = 4 * 1024 * 1024
+    const chunks: string[] = []
+    for (const f of files) {
+      if (f.size > maxBytes) {
+        chunks.push(`[跳过「${f.name}」：文件超过 4MB]`)
+        continue
+      }
+      const ext = f.name.includes('.')
+        ? f.name.slice(f.name.lastIndexOf('.') + 1).toLowerCase()
+        : ''
+      const looksText =
+        f.type.startsWith('text/') || textExts.has(ext) || ext === ''
+      if (looksText) {
+        try {
+          const t = await f.text()
+          chunks.push(`--- ${f.name} ---\n${t}`)
+        } catch {
+          chunks.push(`[无法读取「${f.name}」]`)
+        }
+      } else {
+        chunks.push(
+          `[已选文件「${f.name}」：当前仅自动读入纯文本。Word(.docx) 等请先另存为 .txt 或复制正文后粘贴。]`,
+        )
+      }
+    }
+    if (chunks.length === 0) return
+    const block = chunks.join('\n\n')
+    setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block))
+  }, [])
+
   return (
     <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
       <AppBackground />
@@ -374,6 +416,7 @@ export default function App() {
           onSubmit={send}
           streaming={streaming}
           onStop={stopStream}
+          onFilesChosen={handleFilesChosen}
         />
       </div>
     </div>
