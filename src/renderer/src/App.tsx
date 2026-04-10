@@ -366,7 +366,6 @@ export default function App() {
           layout="sidebar"
           models={llmModels}
           value={selectedModelPath}
-          disabled={streaming}
           authToken={authToken}
           apiKey={apiKey}
           apiKeyOptions={apiKeySelectOptions}

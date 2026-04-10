@@ -116,9 +116,14 @@ const server = app.listen(PORT, '127.0.0.1', () => {
 server.on('error', (err) => {
   if (err && err.code === 'EADDRINUSE') {
     console.error(
-      `[api-proxy] 端口 ${PORT} 已被占用；若已有本应用反代在运行，可忽略此条。`,
+      `[api-proxy] 端口 ${PORT} 已被占用；假定已有反代在监听（如残留进程或其它终端里的 npm run server）。`,
     )
-    process.exit(0)
+    console.error(
+      '[api-proxy] 本进程不再监听，但保持存活，以免 concurrently -k 在「子进程退出」时连带结束 Vite / Electron。',
+    )
+    /** 维持事件循环，否则进程立即退出会触发 concurrently 的 -k 杀光 dev 链 */
+    setInterval(() => {}, 60_000)
+    return
   }
   console.error('[api-proxy]', err)
   process.exit(1)
