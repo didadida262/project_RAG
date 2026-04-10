@@ -6,13 +6,32 @@
 
 export type EnterpriseApiKeyOption = { label: string; value: string }
 
+function trimOrigin(raw: string | undefined): string {
+  if (raw == null) return ''
+  const t = raw.replace(/\/$/, '').trim()
+  return t
+}
+
+/**
+ * 必须使用绝对 URL：开发态页面在 http://127.0.0.1:5173 时相对路径尚能误打同源；
+ * 打包后 Electron 为 file://，origin 为空，相对路径会变成 file:///… 导致请求瞬间失败。
+ */
 function getEnterpriseOrigin(): string {
-  const direct = import.meta.env.VITE_ENTERPRISE_API_URL?.replace(/\/$/, '') ?? ''
+  const direct = trimOrigin(import.meta.env.VITE_ENTERPRISE_API_URL)
   if (direct) return direct
-  const proxy =
-    import.meta.env.VITE_API_PROXY_URL?.replace(/\/$/, '') ??
-    'http://127.0.0.1:8787'
-  return proxy
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.electronAPI?.apiBaseUrl === 'string'
+  ) {
+    const fromShell = trimOrigin(window.electronAPI.apiBaseUrl)
+    if (fromShell) return fromShell
+  }
+
+  const proxy = trimOrigin(import.meta.env.VITE_API_PROXY_URL)
+  if (proxy) return proxy
+
+  return 'http://127.0.0.1:8787'
 }
 
 function enterpriseUrl(pathWithQuery: string): string {

@@ -62,7 +62,7 @@ export function ChatToolbar({
     : 'h-[2.125rem] min-w-[3.25rem] shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 text-sm font-medium text-cyan-800 shadow-sm outline-none transition hover:bg-cyan-500/15 focus-visible:ring-2 focus-visible:ring-cyan-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/35 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:bg-emerald-500/15 dark:focus-visible:ring-emerald-500/35'
 
   const outerClass = isSidebar
-    ? 'w-full shrink-0 pt-4'
+    ? 'w-full shrink-0'
     : 'shrink-0 border-b border-zinc-200/90 bg-white/75 px-5 py-2.5 backdrop-blur-md dark:border-zinc-700/80 dark:bg-zinc-950/80 sm:px-8'
 
   const innerClass = isSidebar

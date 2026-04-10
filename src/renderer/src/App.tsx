@@ -11,14 +11,12 @@ import { ChatToolbar } from './components/ChatToolbar'
 import { ChatTranscript } from './components/ChatTranscript'
 import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
-import { useTheme } from './providers/ThemeProvider'
-
 const MODEL_PATH_STORAGE_KEY = 'private-rag-gguf-path'
-const AUTH_TOKEN_STORAGE_KEY = 'private-rag-header-token'
 const API_KEY_STORAGE_KEY = 'private-rag-header-api-key'
+/** 历史版本曾持久化 token，启动时清掉，避免用户以为「被记住」 */
+const LEGACY_AUTH_TOKEN_STORAGE_KEY = 'private-rag-header-token'
 
 export default function App() {
-  const { theme, toggle } = useTheme()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -52,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      setAuthToken(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ?? '')
+      localStorage.removeItem(LEGACY_AUTH_TOKEN_STORAGE_KEY)
       setApiKey(localStorage.getItem(API_KEY_STORAGE_KEY) ?? '')
     } catch {
       /* ignore */
@@ -363,7 +361,7 @@ export default function App() {
   return (
     <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
       <AppBackground />
-      <HeaderBar onToggleTheme={toggle} themeIsDark={theme === 'dark'}>
+      <HeaderBar>
         <ChatToolbar
           layout="sidebar"
           models={llmModels}
@@ -378,11 +376,6 @@ export default function App() {
           onTokenBlur={handleTokenBlur}
           onAuthTokenChange={(v) => {
             setAuthToken(v)
-            try {
-              localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, v)
-            } catch {
-              /* ignore */
-            }
           }}
           onApiKeyChange={(v) => {
             setApiKey(v)

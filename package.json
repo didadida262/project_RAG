@@ -71,6 +71,9 @@
       "server/**/*.mjs",
       "package.json"
     ],
+    "asarUnpack": [
+      "server/**/*.mjs"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [

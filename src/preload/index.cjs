@@ -11,7 +11,7 @@ function readApiBaseUrl() {
       return hit.slice(PREFIX.length)
     }
   }
-  return 'http://127.0.0.1:8000'
+  return 'http://127.0.0.1:8787'
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
