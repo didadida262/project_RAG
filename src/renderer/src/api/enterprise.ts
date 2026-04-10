@@ -40,6 +40,25 @@ function enterpriseUrl(pathWithQuery: string): string {
   return origin ? `${origin}${path}` : path
 }
 
+/**
+ * 带 PDF/DOCX 时须 POST 到本机（同一路径 `/enterprise/.../chat/completions` + multipart），
+ * 由 Node 解析后再 JSON 转发上游；若用 `VITE_ENTERPRISE_API_URL` 直连公网则无效。
+ */
+function getLocalMiddlewareOrigin(): string {
+  const proxy = trimOrigin(import.meta.env.VITE_API_PROXY_URL)
+  if (proxy) return proxy
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.electronAPI?.apiBaseUrl === 'string'
+  ) {
+    const fromShell = trimOrigin(window.electronAPI.apiBaseUrl)
+    if (fromShell) return fromShell
+  }
+
+  return 'http://127.0.0.1:8787'
+}
+
 function pickStr(obj: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
     const v = obj[k]
@@ -138,7 +157,7 @@ function rowToModelOption(row: unknown): EnterpriseModelOption | null {
  * 与平台 Web 一致：JWT 走 Authorization Bearer，密钥走 X-Api-Key（与 DevTools 一致，HTTP 下与 X-API-Key 等价）。
  * api-keys、model-services、chat/completions 三类请求均通过此函数组头。
  */
-function authorizationBearer(token: string): string {
+export function authorizationBearer(token: string): string {
   const t = token.trim()
   if (!t) return ''
   return /^Bearer\s+/i.test(t) ? t : `Bearer ${t}`
@@ -241,43 +260,20 @@ export type EnterpriseChatMessage = {
 }
 
 /**
- * OpenAI 兼容流式对话。
+ * OpenAI 兼容流式对话（纯 JSON，与平台一致）。
  *
  * POST `{origin}/enterprise/api/v1/chat/completions`，body `{ model, messages, stream: true }`。
  * 请求头：`Authorization: Bearer <JWT>`、`X-Api-Key: <下拉选的 sk-...>`、`Content-Type: application/json`、`Accept: text/event-stream`。
  * 响应：SSE，`data:` 行 JSON 里 `choices[0].delta.content`（或 `reasoning_content`）拼成正文。
  */
-export async function streamEnterpriseChatCompletions(
-  token: string,
-  apiKey: string,
-  params: {
-    model: string
-    messages: EnterpriseChatMessage[]
-    signal?: AbortSignal
-    onToken: (text: string) => void
-  },
+
+/**
+ * 解析 OpenAI 兼容 SSE：`data:` 行 JSON 中 `choices[0].delta.content`（或 `reasoning_content`）。
+ */
+export async function consumeOpenAiCompatibleSseStream(
+  res: Response,
+  onToken: (text: string) => void,
 ): Promise<void> {
-  const { model, messages, signal, onToken } = params
-  if (!apiKey.trim()) {
-    throw new Error('请先在 api_key 下拉中选择一项（请求头使用 X-Api-Key）')
-  }
-  const url = enterpriseUrl('/enterprise/api/v1/chat/completions')
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: buildChatCompletionsHeaders(token, apiKey),
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-    }),
-    signal,
-  })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `chat/completions HTTP ${res.status}`)
-  }
-
   const resBody = res.body
   if (!resBody) {
     const text = await res.text().catch(() => '')
@@ -359,4 +355,99 @@ export async function streamEnterpriseChatCompletions(
       }
     }
   }
+}
+
+export async function streamEnterpriseChatCompletions(
+  token: string,
+  apiKey: string,
+  params: {
+    model: string
+    messages: EnterpriseChatMessage[]
+    signal?: AbortSignal
+    onToken: (text: string) => void
+  },
+): Promise<void> {
+  const { model, messages, signal, onToken } = params
+  if (!apiKey.trim()) {
+    throw new Error('请先在 api_key 下拉中选择一项（请求头使用 X-Api-Key）')
+  }
+  const url = enterpriseUrl('/enterprise/api/v1/chat/completions')
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: buildChatCompletionsHeaders(token, apiKey),
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+    }),
+    signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `chat/completions HTTP ${res.status}`)
+  }
+
+  await consumeOpenAiCompatibleSseStream(res, onToken)
+}
+
+/**
+ * 与会话相同 URL：`POST …/enterprise/api/v1/chat/completions`。
+ * 使用 multipart 把 file + messages（JSON 字符串）交给**本机** Node：抽出正文写入首条 `system.content`，
+ * 再向上游发纯 JSON（上游不收文件）。
+ */
+export async function streamEnterpriseChatCompletionsWithDocument(
+  token: string,
+  apiKey: string,
+  params: {
+    model: string
+    messages: EnterpriseChatMessage[]
+    file: File
+    signal?: AbortSignal
+    onToken: (text: string) => void
+  },
+): Promise<void> {
+  const { model, messages, file, signal, onToken } = params
+  if (!apiKey.trim()) {
+    throw new Error('请先在 api_key 下拉中选择一项（请求头使用 X-Api-Key）')
+  }
+  if (!model.trim()) {
+    throw new Error('请选择模型')
+  }
+
+  const origin = getLocalMiddlewareOrigin().replace(/\/$/, '')
+  const url = `${origin}/enterprise/api/v1/chat/completions`
+
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('model', model.trim())
+  fd.append('messages', JSON.stringify(messages))
+  fd.append('stream', 'true')
+
+  const headers = new Headers()
+  const auth = authorizationBearer(token)
+  if (auth) headers.set('Authorization', auth)
+  headers.set('X-Api-Key', apiKey.trim())
+  headers.set('Accept', 'text/event-stream')
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: fd,
+    signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    let msg = text || `chat/completions HTTP ${res.status}`
+    try {
+      const j = JSON.parse(text) as { error?: { message?: string } }
+      if (j.error?.message) msg = j.error.message
+    } catch {
+      /* keep */
+    }
+    throw new Error(msg)
+  }
+
+  await consumeOpenAiCompatibleSseStream(res, onToken)
 }

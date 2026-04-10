@@ -4,6 +4,7 @@ import {
   fetchEnterpriseApiKeys,
   fetchEnterpriseModelServices,
   streamEnterpriseChatCompletions,
+  streamEnterpriseChatCompletionsWithDocument,
   type EnterpriseApiKeyOption,
 } from './api/enterprise'
 import { AppBackground } from './components/AppBackground'
@@ -32,6 +33,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState('')
   const [enterpriseLoading, setEnterpriseLoading] = useState(false)
   const streamAbortRef = useRef<AbortController | null>(null)
+  const [attachedDocument, setAttachedDocument] = useState<File | null>(null)
 
   const enterprisePickEnabled = committedToken.trim().length > 0
 
@@ -273,18 +275,121 @@ export default function App() {
     [selectedModelPath, committedToken, apiKey],
   )
 
+  const runDocumentStream = useCallback(
+    async (question: string, file: File, history: ChatMessage[]) => {
+      setStreaming(true)
+      setWarnings([])
+      let assistant = ''
+      const ac = new AbortController()
+      streamAbortRef.current = ac
+
+      try {
+        if (!selectedModelPath.trim()) {
+          throw new Error(
+            '请先点击「开搞」拉取模型列表，并在「模型」中选择一项',
+          )
+        }
+        const jwt = committedToken.trim()
+        if (!jwt) {
+          throw new Error('请先填写 token 并点击「开搞」，再发起对话')
+        }
+        if (!apiKey.trim()) {
+          throw new Error('请先在 api_key 中选择密钥（将以 X-Api-Key 请求头发送）')
+        }
+        const messages = [
+          ...history.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user' as const, content: question },
+        ]
+        await streamEnterpriseChatCompletionsWithDocument(
+          committedToken,
+          apiKey,
+          {
+            model: selectedModelPath,
+            messages,
+            file,
+            signal: ac.signal,
+            onToken: (t) => {
+              assistant += t
+              setMessages((m) => {
+                const next = [...m]
+                const last = next[next.length - 1]
+                if (last?.role === 'assistant') {
+                  next[next.length - 1] = { ...last, content: assistant }
+                }
+                return next
+              })
+            },
+          },
+        )
+      } catch (e) {
+        const aborted = e instanceof DOMException && e.name === 'AbortError'
+        if (aborted) {
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant') {
+              const cur = last.content.trim()
+              next[next.length - 1] = {
+                ...last,
+                content: cur ? `${cur}\n\n（已停止生成）` : '（已停止生成）',
+              }
+            }
+            return next
+          })
+        } else {
+          const msg = e instanceof Error ? e.message : '请求失败'
+          setWarnings((w) => [...w, msg])
+          setMessages((m) => {
+            const next = [...m]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant' && !last.content) {
+              next[next.length - 1] = {
+                role: 'assistant',
+                content: `（错误）${msg}`,
+              }
+            }
+            return next
+          })
+        }
+      } finally {
+        streamAbortRef.current = null
+        setStreaming(false)
+      }
+    },
+    [selectedModelPath, committedToken, apiKey],
+  )
+
   const send = useCallback(async () => {
     const text = input.trim()
     if (!text || streaming) return
     setInput('')
     const history = [...messages]
+    const doc = attachedDocument
+    if (doc) {
+      setAttachedDocument(null)
+      const userLabel = `【附件：${doc.name}】\n\n${text}`
+      setMessages((m) => [
+        ...m,
+        { role: 'user', content: userLabel },
+        { role: 'assistant', content: '' },
+      ])
+      await runDocumentStream(text, doc, history)
+      return
+    }
     setMessages((m) => [
       ...m,
       { role: 'user', content: text },
       { role: 'assistant', content: '' },
     ])
     await runStream(text, history)
-  }, [input, streaming, messages, runStream])
+  }, [
+    input,
+    streaming,
+    messages,
+    runStream,
+    attachedDocument,
+    runDocumentStream,
+  ])
 
   const regenerateAt = useCallback(
     async (assistantIndex: number) => {
@@ -316,47 +421,75 @@ export default function App() {
     [streaming, messages, runStream],
   )
 
-  const handleFilesChosen = useCallback(async (files: File[]) => {
-    const textExts = new Set([
-      'txt',
-      'md',
-      'csv',
-      'json',
-      'log',
-      'xml',
-      'html',
-      'htm',
-      'tsv',
-    ])
-    const maxBytes = 4 * 1024 * 1024
-    const chunks: string[] = []
-    for (const f of files) {
-      if (f.size > maxBytes) {
-        chunks.push(`[跳过「${f.name}」：文件超过 4MB]`)
-        continue
+  const handleFilesChosen = useCallback(
+    async (files: File[]) => {
+      const f = files[0]
+      if (!f) return
+      if (files.length > 1) {
+        setWarnings((w) => [
+          ...w,
+          `一次仅支持 1 个附件，已忽略除「${f.name}」外的 ${files.length - 1} 个文件。`,
+        ])
       }
+
+      const textExts = new Set([
+        'txt',
+        'md',
+        'csv',
+        'json',
+        'log',
+        'xml',
+        'html',
+        'htm',
+        'tsv',
+      ])
+      const maxBytes = 4 * 1024 * 1024
+      const serverMaxHint = 15 * 1024 * 1024
+
       const ext = f.name.includes('.')
         ? f.name.slice(f.name.lastIndexOf('.') + 1).toLowerCase()
         : ''
+      const isPdf = ext === 'pdf' || f.type === 'application/pdf'
+      const isDocx =
+        ext === 'docx' ||
+        f.type ===
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+      if (isPdf || isDocx) {
+        if (f.size > serverMaxHint) {
+          setWarnings((w) => [
+            ...w,
+            `「${f.name}」超过本机服务默认上限（约 15MB），请压缩或拆分后再传。`,
+          ])
+          return
+        }
+        setAttachedDocument(f)
+        return
+      }
+
+      if (f.size > maxBytes) {
+        setWarnings((w) => [...w, `「${f.name}」超过 4MB，未读入。`])
+        return
+      }
       const looksText =
         f.type.startsWith('text/') || textExts.has(ext) || ext === ''
       if (looksText) {
         try {
           const t = await f.text()
-          chunks.push(`--- ${f.name} ---\n${t}`)
+          const block = `--- ${f.name} ---\n${t}`
+          setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block))
         } catch {
-          chunks.push(`[无法读取「${f.name}」]`)
+          setWarnings((w) => [...w, `无法读取「${f.name}」。`])
         }
-      } else {
-        chunks.push(
-          `[已选文件「${f.name}」：当前仅自动读入纯文本。Word(.docx) 等请先另存为 .txt 或复制正文后粘贴。]`,
-        )
+        return
       }
-    }
-    if (chunks.length === 0) return
-    const block = chunks.join('\n\n')
-    setInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block))
-  }, [])
+      setWarnings((w) => [
+        ...w,
+        `「${f.name}」：请使用纯文本，或 PDF / Word（.docx）作为附件。`,
+      ])
+    },
+    [],
+  )
 
   return (
     <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
@@ -409,6 +542,8 @@ export default function App() {
           streaming={streaming}
           onStop={stopStream}
           onFilesChosen={handleFilesChosen}
+          attachedDocumentName={attachedDocument?.name ?? null}
+          onClearAttachedDocument={() => setAttachedDocument(null)}
         />
       </div>
     </div>

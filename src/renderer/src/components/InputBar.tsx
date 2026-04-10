@@ -17,6 +17,9 @@ type Props = {
   onStop: () => void
   /** 用户通过「上传文件」选中的文件（由上层决定如何读入/提示） */
   onFilesChosen?: (files: File[]) => void
+  /** 已选中的 PDF/DOCX（由 Node 中间层解析），展示为胶囊标签 */
+  attachedDocumentName?: string | null
+  onClearAttachedDocument?: () => void
 }
 
 export function InputBar({
@@ -26,6 +29,8 @@ export function InputBar({
   streaming,
   onStop,
   onFilesChosen,
+  attachedDocumentName,
+  onClearAttachedDocument,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const ta = useRef<HTMLTextAreaElement>(null)
@@ -37,6 +42,8 @@ export function InputBar({
     if (streaming || !value.trim()) return
     onSubmit()
   }, [streaming, onSubmit, value])
+
+  const hasAttachedDoc = Boolean(attachedDocumentName?.trim())
 
   useEffect(() => {
     const el = ta.current
@@ -90,11 +97,11 @@ export function InputBar({
           type="file"
           className="sr-only"
           tabIndex={-1}
-          multiple
           onChange={(e) => {
             const { files } = e.target
-            if (files?.length && onFilesChosen) {
-              onFilesChosen(Array.from(files))
+            const first = files?.[0]
+            if (first && onFilesChosen) {
+              onFilesChosen([first])
             }
             e.target.value = ''
           }}
@@ -129,13 +136,31 @@ export function InputBar({
                   icon={faPaperclip}
                   className="w-4 shrink-0 text-zinc-500 dark:text-zinc-400"
                 />
-                上传文件
+                上传文件（单次 1 个）
               </motion.button>
             </motion.div>
           ) : null}
         </AnimatePresence>
 
-        <div className={pillClass}>
+        <div
+          className={`${pillClass} ${hasAttachedDoc ? 'flex-col gap-1.5 !items-stretch' : ''}`}
+        >
+          {hasAttachedDoc ? (
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5 border-b border-zinc-200/80 px-1 pb-2 pt-0.5 dark:border-zinc-600/70">
+              <span className="max-w-[min(100%,280px)] truncate rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-medium text-cyan-800 dark:bg-cyan-400/15 dark:text-cyan-100">
+                {attachedDocumentName}
+              </span>
+              <button
+                type="button"
+                disabled={streaming}
+                onClick={() => onClearAttachedDocument?.()}
+                className="shrink-0 rounded-full px-2 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200/80 hover:text-zinc-800 disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-600/70 dark:hover:text-zinc-100"
+              >
+                移除
+              </button>
+            </div>
+          ) : null}
+          <div className="flex w-full min-w-0 items-end gap-1">
           <motion.button
             type="button"
             className={attachBtnClass}
@@ -198,6 +223,7 @@ export function InputBar({
               <FontAwesomeIcon icon={faArrowUp} className="text-xs" />
             </button>
           )}
+          </div>
         </div>
       </div>
     </div>
