@@ -278,13 +278,19 @@ export async function fetchEnterpriseModelServices(
 
 /**
  * 模型列表固定请求 {@link MODEL_SERVICES_LIST_URL}（企业 model-services），
- * 请求头与平台一致：`X-Api-Key`（及可选 Bearer），不依赖用户填写的 baseUrl。
+ * 请求头：`X-Api-Key` + 可选 `Authorization: Bearer`（`authToken`，操作面板1 开搞须传）。
  */
-export async function fetchLlmModels(apiKey: string): Promise<EnterpriseModelOption[]> {
+export async function fetchLlmModels(
+  apiKey: string,
+  authToken?: string,
+): Promise<EnterpriseModelOption[]> {
   if (!apiKey.trim()) return []
   const res = await fetch(MODEL_SERVICES_LIST_URL, {
     method: 'GET',
-    headers: buildEnterpriseAuthHeaders('', apiKey.trim()),
+    headers: buildEnterpriseAuthHeaders(
+      authToken?.trim() ?? '',
+      apiKey.trim(),
+    ),
   })
   const text = await res.text()
   if (!res.ok) {
@@ -442,6 +448,59 @@ async function consumeLlmChatCompletionsResponse(
     return
   }
   throw new Error(text.slice(0, 400) || '无法解析模型回复')
+}
+
+/** 企业平台固定会话地址（`X-Api-Key` + `Authorization`） */
+export const ENTERPRISE_FIXED_CHAT_COMPLETIONS_URL =
+  'http://58.222.41.68/enterprise/api/v1/chat/completions'
+
+/**
+ * 直连企业 `chat/completions`：`X-Api-Key` 用 apikey，`Authorization` 用 token（自动补 Bearer）。
+ */
+export async function streamEnterpriseFixedChat(
+  xApiKey: string,
+  authToken: string,
+  params: {
+    model: string
+    messages: EnterpriseChatMessage[]
+    stream?: boolean
+    signal?: AbortSignal
+    onToken: (text: string) => void
+  },
+): Promise<void> {
+  const { model, messages, signal, onToken, stream: streamParam } = params
+  const stream = streamParam !== false
+  if (!xApiKey.trim()) {
+    throw new Error('请填写 apikey')
+  }
+  if (!authToken.trim()) {
+    throw new Error('请填写 token')
+  }
+
+  const headers = buildEnterpriseAuthHeaders(authToken.trim(), xApiKey.trim())
+  headers.set('Content-Type', 'application/json')
+  headers.set(
+    'Accept',
+    stream ? 'application/json, text/event-stream' : 'application/json',
+  )
+
+  const res = await fetch(ENTERPRISE_FIXED_CHAT_COMPLETIONS_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model,
+      messages,
+      stream,
+    }),
+    signal,
+  })
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(t || `chat/completions HTTP ${res.status}`)
+  }
+
+  await consumeLlmChatCompletionsResponse(res, onToken)
 }
 
 /**

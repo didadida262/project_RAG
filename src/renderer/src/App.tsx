@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage, LlmModelOption } from './api/client'
 import {
   fetchLlmModels,
+  streamEnterpriseFixedChat,
   streamLlmChatCompletions,
   streamLlmChatCompletionsWithDocument,
 } from './api/enterprise'
 import { AppBackground } from './components/AppBackground'
 import { ChatToolbar } from './components/ChatToolbar'
+import { CollapsibleSidePanel } from './components/CollapsibleSidePanel'
+import { EnterpriseChatCard } from './components/EnterpriseChatCard'
 import { ChatTranscript } from './components/ChatTranscript'
 import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
@@ -32,6 +35,17 @@ export default function App() {
   const [chatStreamEnabled, setChatStreamEnabled] = useState(true)
   const streamAbortRef = useRef<AbortController | null>(null)
   const [attachedDocument, setAttachedDocument] = useState<File | null>(null)
+
+  /** 「操作面板1」：开搞后用于 58.222.41.68 chat/completions */
+  const [entApikey, setEntApikey] = useState('')
+  const [entToken, setEntToken] = useState('')
+  const [entSelectedModel, setEntSelectedModel] = useState('')
+  const [entSessionActive, setEntSessionActive] = useState(false)
+  const [entCommitApikey, setEntCommitApikey] = useState('')
+  const [entCommitToken, setEntCommitToken] = useState('')
+  /** 侧栏折叠：默认展开操作面板1 */
+  const [enterprisePanelExpanded, setEnterprisePanelExpanded] = useState(true)
+  const [directPanelExpanded, setDirectPanelExpanded] = useState(false)
 
   useEffect(() => {
     try {
@@ -127,6 +141,24 @@ export default function App() {
     }
   }, [apiKey, loadLlmModels])
 
+  /** 操作面板1 模型下拉与面板2 共用 `llmModels`，选中项在列表变化时自动校正 */
+  useEffect(() => {
+    if (llmModels.length === 0) {
+      setEntSelectedModel('')
+      return
+    }
+    setEntSelectedModel((prev) => {
+      if (prev && llmModels.some((m) => m.path === prev)) return prev
+      if (
+        selectedModelPath &&
+        llmModels.some((m) => m.path === selectedModelPath)
+      ) {
+        return selectedModelPath
+      }
+      return llmModels[0].path
+    })
+  }, [llmModels, selectedModelPath])
+
   const handleLoadEnterpriseData = useCallback(async () => {
     setEnterpriseLoading(true)
     setWarnings([])
@@ -136,6 +168,35 @@ export default function App() {
       setEnterpriseLoading(false)
     }
   }, [apiKey, loadLlmModels])
+
+  const handleEnterprisePanelGo = useCallback(() => {
+    const k = entApikey.trim()
+    const t = entToken.trim()
+    if (!k) {
+      setWarnings((w) => [...w, '请在操作面板1填写 apikey'])
+      return
+    }
+    if (!t) {
+      setWarnings((w) => [...w, '请在操作面板1填写 token'])
+      return
+    }
+    const model = entSelectedModel.trim()
+    if (
+      llmModels.length === 0 ||
+      !model ||
+      !llmModels.some((m) => m.path === model)
+    ) {
+      setWarnings((w) => [
+        ...w,
+        '请先在操作面板2填写 api_key 并等待模型列表加载后，在此选择模型。',
+      ])
+      return
+    }
+    setWarnings([])
+    setEntCommitApikey(k)
+    setEntCommitToken(t)
+    setEntSessionActive(true)
+  }, [entApikey, entToken, entSelectedModel, llmModels])
 
   const stopStream = useCallback(() => {
     streamAbortRef.current?.abort()
@@ -150,24 +211,13 @@ export default function App() {
       streamAbortRef.current = ac
 
       try {
-        if (!baseUrl.trim()) {
-          throw new Error(
-            '请填写 baseUrl（API 前缀，如 https://aiplatform.njsrd.com/llm/v1）',
-          )
-        }
-        if (!selectedModelPath.trim()) {
-          throw new Error(
-            '请填写 api_key 并等待模型列表加载后，在「模型」中选择一项',
-          )
-        }
-        if (!apiKey.trim()) {
-          throw new Error('请填写 api_key（将使用 Authorization: Bearer 发送）')
-        }
-        await streamLlmChatCompletions(
-          baseUrl,
-          apiKey,
-          {
-            model: selectedModelPath,
+        const useEnt =
+          entSessionActive &&
+          Boolean(entCommitApikey && entCommitToken && entSelectedModel.trim())
+
+        if (useEnt) {
+          await streamEnterpriseFixedChat(entCommitApikey, entCommitToken, {
+            model: entSelectedModel.trim(),
             messages: [...history, { role: 'user', content: text }],
             stream: chatStreamEnabled,
             signal: ac.signal,
@@ -182,8 +232,43 @@ export default function App() {
                 return next
               })
             },
-          },
-        )
+          })
+        } else {
+          if (!baseUrl.trim()) {
+            throw new Error(
+              '请填写 baseUrl（API 前缀，如 https://aiplatform.njsrd.com/llm/v1）',
+            )
+          }
+          if (!selectedModelPath.trim()) {
+            throw new Error(
+              '请填写 api_key 并等待模型列表加载后，在「模型」中选择一项',
+            )
+          }
+          if (!apiKey.trim()) {
+            throw new Error('请填写 api_key（将使用 Authorization: Bearer 发送）')
+          }
+          await streamLlmChatCompletions(
+            baseUrl,
+            apiKey,
+            {
+              model: selectedModelPath,
+              messages: [...history, { role: 'user', content: text }],
+              stream: chatStreamEnabled,
+              signal: ac.signal,
+              onToken: (t) => {
+                assistant += t
+                setMessages((m) => {
+                  const next = [...m]
+                  const last = next[next.length - 1]
+                  if (last?.role === 'assistant') {
+                    next[next.length - 1] = { ...last, content: assistant }
+                  }
+                  return next
+                })
+              },
+            },
+          )
+        }
       } catch (e) {
         const aborted = e instanceof DOMException && e.name === 'AbortError'
         if (aborted) {
@@ -219,7 +304,16 @@ export default function App() {
         setStreaming(false)
       }
     },
-    [selectedModelPath, baseUrl, apiKey, chatStreamEnabled],
+    [
+      selectedModelPath,
+      baseUrl,
+      apiKey,
+      chatStreamEnabled,
+      entSessionActive,
+      entCommitApikey,
+      entCommitToken,
+      entSelectedModel,
+    ],
   )
 
   const runDocumentStream = useCallback(
@@ -231,6 +325,14 @@ export default function App() {
       streamAbortRef.current = ac
 
       try {
+        const useEnt =
+          entSessionActive &&
+          Boolean(entCommitApikey && entCommitToken && entSelectedModel.trim())
+        if (useEnt) {
+          throw new Error(
+            '操作面板1会话不支持附件，请使用操作面板2（baseUrl + api_key）发送带文件消息。',
+          )
+        }
         if (!baseUrl.trim()) {
           throw new Error(
             '请填写 baseUrl（如 https://aiplatform.njsrd.com/llm/v1；附件经本机转发到 …/chat/completions）',
@@ -305,12 +407,31 @@ export default function App() {
         setStreaming(false)
       }
     },
-    [selectedModelPath, baseUrl, apiKey, chatStreamEnabled],
+    [
+      selectedModelPath,
+      baseUrl,
+      apiKey,
+      chatStreamEnabled,
+      entSessionActive,
+      entCommitApikey,
+      entCommitToken,
+      entSelectedModel,
+    ],
   )
 
   const send = useCallback(async () => {
     const text = input.trim()
     if (!text || streaming) return
+    const useEnt =
+      entSessionActive &&
+      Boolean(entCommitApikey && entCommitToken && entSelectedModel.trim())
+    if (useEnt && attachedDocument) {
+      setWarnings((w) => [
+        ...w,
+        '操作面板1会话不支持附件，请移除附件或改用操作面板2。',
+      ])
+      return
+    }
     setInput('')
     const history = [...messages]
     const doc = attachedDocument
@@ -338,6 +459,10 @@ export default function App() {
     runStream,
     attachedDocument,
     runDocumentStream,
+    entSessionActive,
+    entCommitApikey,
+    entCommitToken,
+    entSelectedModel,
   ])
 
   const regenerateAt = useCallback(
@@ -444,49 +569,77 @@ export default function App() {
     <div className="relative flex h-dvh max-h-dvh min-h-0 flex-row overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100">
       <AppBackground />
       <HeaderBar>
-        <ChatToolbar
-          layout="sidebar"
-          models={llmModels}
-          value={selectedModelPath}
-          baseUrl={baseUrl}
-          apiKey={apiKey}
-          modelsListLoading={modelsListLoading}
-          enterpriseLoading={enterpriseLoading}
-          onLoadEnterpriseData={handleLoadEnterpriseData}
-          onBaseUrlChange={(v) => {
-            setBaseUrl(v)
-            try {
-              localStorage.setItem(BASE_URL_STORAGE_KEY, v)
-            } catch {
-              /* ignore */
-            }
-          }}
-          onApiKeyChange={(v) => {
-            setApiKey(v)
-            try {
-              localStorage.setItem(API_KEY_STORAGE_KEY, v)
-            } catch {
-              /* ignore */
-            }
-          }}
-          streamEnabled={chatStreamEnabled}
-          onStreamEnabledChange={(v) => {
-            setChatStreamEnabled(v)
-            try {
-              localStorage.setItem(CHAT_STREAM_STORAGE_KEY, v ? '1' : '0')
-            } catch {
-              /* ignore */
-            }
-          }}
-          onChange={(path) => {
-            setSelectedModelPath(path)
-            try {
-              localStorage.setItem(MODEL_PATH_STORAGE_KEY, path)
-            } catch {
-              /* ignore */
-            }
-          }}
-        />
+        <CollapsibleSidePanel
+          title="操作面板1"
+          titleClassName="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-violet-300 dark:to-fuchsia-300"
+          expanded={enterprisePanelExpanded}
+          onToggle={() => setEnterprisePanelExpanded((v) => !v)}
+          ariaLabel="操作面板1"
+        >
+          <EnterpriseChatCard
+            apikey={entApikey}
+            token={entToken}
+            models={llmModels}
+            selectedModel={entSelectedModel}
+            modelsLoading={modelsListLoading}
+            onApikeyChange={setEntApikey}
+            onTokenChange={setEntToken}
+            onModelChange={setEntSelectedModel}
+            onGo={handleEnterprisePanelGo}
+            disabled={streaming}
+          />
+        </CollapsibleSidePanel>
+        <CollapsibleSidePanel
+          title="操作面板2"
+          titleClassName="bg-gradient-to-r from-cyan-600 to-violet-600 bg-clip-text text-transparent dark:from-cyan-400 dark:to-fuchsia-400"
+          expanded={directPanelExpanded}
+          onToggle={() => setDirectPanelExpanded((v) => !v)}
+          ariaLabel="操作面板2"
+        >
+          <ChatToolbar
+            layout="sidebar"
+            models={llmModels}
+            value={selectedModelPath}
+            baseUrl={baseUrl}
+            apiKey={apiKey}
+            modelsListLoading={modelsListLoading}
+            enterpriseLoading={enterpriseLoading}
+            onLoadEnterpriseData={handleLoadEnterpriseData}
+            onBaseUrlChange={(v) => {
+              setBaseUrl(v)
+              try {
+                localStorage.setItem(BASE_URL_STORAGE_KEY, v)
+              } catch {
+                /* ignore */
+              }
+            }}
+            onApiKeyChange={(v) => {
+              setApiKey(v)
+              try {
+                localStorage.setItem(API_KEY_STORAGE_KEY, v)
+              } catch {
+                /* ignore */
+              }
+            }}
+            streamEnabled={chatStreamEnabled}
+            onStreamEnabledChange={(v) => {
+              setChatStreamEnabled(v)
+              try {
+                localStorage.setItem(CHAT_STREAM_STORAGE_KEY, v ? '1' : '0')
+              } catch {
+                /* ignore */
+              }
+            }}
+            onChange={(path) => {
+              setSelectedModelPath(path)
+              try {
+                localStorage.setItem(MODEL_PATH_STORAGE_KEY, path)
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+        </CollapsibleSidePanel>
       </HeaderBar>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatTranscript
