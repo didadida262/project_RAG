@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage, LlmModelOption } from './api/client'
 import {
-  fetchEnterpriseApiKeys,
-  fetchEnterpriseModelServices,
-  streamEnterpriseChatCompletions,
-  streamEnterpriseChatCompletionsWithDocument,
-  type EnterpriseApiKeyOption,
+  fetchLlmModels,
+  streamLlmChatCompletions,
+  streamLlmChatCompletionsWithDocument,
 } from './api/enterprise'
 import { AppBackground } from './components/AppBackground'
 import { ChatToolbar } from './components/ChatToolbar'
@@ -14,6 +12,8 @@ import { HeaderBar } from './components/HeaderBar'
 import { InputBar } from './components/InputBar'
 const MODEL_PATH_STORAGE_KEY = 'private-rag-gguf-path'
 const API_KEY_STORAGE_KEY = 'private-rag-header-api-key'
+const BASE_URL_STORAGE_KEY = 'private-rag-llm-base-url'
+const CHAT_STREAM_STORAGE_KEY = 'private-rag-llm-chat-stream'
 /** 历史版本曾持久化 token，启动时清掉，避免用户以为「被记住」 */
 const LEGACY_AUTH_TOKEN_STORAGE_KEY = 'private-rag-header-token'
 
@@ -23,84 +23,30 @@ export default function App() {
   const [streaming, setStreaming] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
   const [llmModels, setLlmModels] = useState<LlmModelOption[]>([])
-  const [enterpriseApiKeys, setEnterpriseApiKeys] = useState<
-    EnterpriseApiKeyOption[]
-  >([])
   const [selectedModelPath, setSelectedModelPath] = useState('')
-  const [authToken, setAuthToken] = useState('')
-  /** 最近一次点击「开搞」时采用的 JWT，用于列表与对话请求头 */
-  const [committedToken, setCommittedToken] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [enterpriseLoading, setEnterpriseLoading] = useState(false)
+  const [modelsListLoading, setModelsListLoading] = useState(false)
+  /** 请求体 `stream` 字段，默认开启流式 */
+  const [chatStreamEnabled, setChatStreamEnabled] = useState(true)
   const streamAbortRef = useRef<AbortController | null>(null)
   const [attachedDocument, setAttachedDocument] = useState<File | null>(null)
-
-  const enterprisePickEnabled = committedToken.trim().length > 0
-
-  const apiKeySelectOptions = useMemo(() => {
-    if (!enterprisePickEnabled) {
-      return [{ label: '请先填写 token 并点击开搞', value: '' }]
-    }
-    const head = { label: '可选', value: '' }
-    const rest = [...enterpriseApiKeys]
-    const trimmed = apiKey.trim()
-    if (trimmed && !rest.some((o) => o.value === apiKey)) {
-      return [head, { label: '当前已保存', value: apiKey }, ...rest]
-    }
-    return [head, ...rest]
-  }, [enterprisePickEnabled, enterpriseApiKeys, apiKey])
 
   useEffect(() => {
     try {
       localStorage.removeItem(LEGACY_AUTH_TOKEN_STORAGE_KEY)
+      setBaseUrl(localStorage.getItem(BASE_URL_STORAGE_KEY) ?? '')
       setApiKey(localStorage.getItem(API_KEY_STORAGE_KEY) ?? '')
+      const streamStored = localStorage.getItem(CHAT_STREAM_STORAGE_KEY)
+      setChatStreamEnabled(streamStored !== '0')
     } catch {
       /* ignore */
     }
   }, [])
 
-  const applyEnterpriseListResults = useCallback(
-    (
-      kRes: PromiseSettledResult<EnterpriseApiKeyOption[]>,
-      mRes: PromiseSettledResult<LlmModelOption[]>,
-    ) => {
-      if (kRes.status === 'fulfilled') {
-        const keys = kRes.value
-        setEnterpriseApiKeys(keys)
-        setApiKey((prev) => {
-          if (keys.length === 0) {
-            try {
-              localStorage.removeItem(API_KEY_STORAGE_KEY)
-            } catch {
-              /* ignore */
-            }
-            return ''
-          }
-          let next = ''
-          if (prev && keys.some((o) => o.value === prev)) {
-            next = prev
-          } else {
-            try {
-              const stored = localStorage.getItem(API_KEY_STORAGE_KEY)
-              if (stored && keys.some((o) => o.value === stored)) {
-                next = stored
-              }
-            } catch {
-              /* ignore */
-            }
-            if (!next) next = keys[0].value
-          }
-          try {
-            if (next) localStorage.setItem(API_KEY_STORAGE_KEY, next)
-            else localStorage.removeItem(API_KEY_STORAGE_KEY)
-          } catch {
-            /* ignore */
-          }
-          return next
-        })
-      } else {
-        setEnterpriseApiKeys([])
-      }
+  const applyModelListResult = useCallback(
+    (mRes: PromiseSettledResult<LlmModelOption[]>) => {
       if (mRes.status === 'fulfilled') {
         const models = mRes.value
         setLlmModels(models)
@@ -137,60 +83,59 @@ export default function App() {
         })
       } else {
         setLlmModels([])
+        setSelectedModelPath('')
+        try {
+          localStorage.removeItem(MODEL_PATH_STORAGE_KEY)
+        } catch {
+          /* ignore */
+        }
       }
     },
     [],
   )
 
-  const loadEnterpriseLists = useCallback(
-    async (token: string, key: string) => {
-      const t = token.trim()
-      if (!t) {
-        setEnterpriseApiKeys([])
-        setLlmModels([])
-        return
-      }
-      const [kRes, mRes] = await Promise.allSettled([
-        fetchEnterpriseApiKeys(t, key),
-        fetchEnterpriseModelServices(t, key),
-      ])
-      applyEnterpriseListResults(kRes, mRes)
+  const loadLlmModels = useCallback(
+    async (key: string) => {
+      const mRes = await Promise.allSettled([fetchLlmModels(key.trim())])
+      applyModelListResult(mRes[0])
     },
-    [applyEnterpriseListResults],
+    [applyModelListResult],
   )
 
-  const handleLoadEnterpriseData = useCallback(async () => {
-    const t = authToken.trim()
-    if (!t) {
-      setWarnings((w) => [...w, '请先填写 token，再点击「开搞」拉取 api_key 与模型列表'])
-      return
-    }
-    setCommittedToken(t)
-    setEnterpriseLoading(true)
-    setWarnings([])
-    try {
-      await loadEnterpriseLists(t, apiKey)
-    } finally {
-      setEnterpriseLoading(false)
-    }
-  }, [authToken, apiKey, loadEnterpriseLists])
-
-  const handleTokenBlur = useCallback(() => {
-    const t = authToken.trim()
-    if (!t) {
-      setCommittedToken('')
-      setEnterpriseApiKeys([])
+  /** api_key 非空时自动拉取固定 model-services 列表（防抖），与 baseUrl 无关 */
+  useEffect(() => {
+    const key = apiKey.trim()
+    if (!key) {
       setLlmModels([])
-      setApiKey('')
       setSelectedModelPath('')
+      setModelsListLoading(false)
       try {
-        localStorage.removeItem(API_KEY_STORAGE_KEY)
         localStorage.removeItem(MODEL_PATH_STORAGE_KEY)
       } catch {
         /* ignore */
       }
+      return
     }
-  }, [authToken])
+    const id = window.setTimeout(() => {
+      setModelsListLoading(true)
+      void loadLlmModels(apiKey).finally(() => {
+        setModelsListLoading(false)
+      })
+    }, 400)
+    return () => {
+      window.clearTimeout(id)
+    }
+  }, [apiKey, loadLlmModels])
+
+  const handleLoadEnterpriseData = useCallback(async () => {
+    setEnterpriseLoading(true)
+    setWarnings([])
+    try {
+      await loadLlmModels(apiKey)
+    } finally {
+      setEnterpriseLoading(false)
+    }
+  }, [apiKey, loadLlmModels])
 
   const stopStream = useCallback(() => {
     streamAbortRef.current?.abort()
@@ -205,24 +150,26 @@ export default function App() {
       streamAbortRef.current = ac
 
       try {
-        if (!selectedModelPath.trim()) {
+        if (!baseUrl.trim()) {
           throw new Error(
-            '请先点击「开搞」拉取模型列表，并在「模型」中选择一项',
+            '请填写 baseUrl（API 前缀，如 https://aiplatform.njsrd.com/llm/v1）',
           )
         }
-        const jwt = committedToken.trim()
-        if (!jwt) {
-          throw new Error('请先填写 token 并点击「开搞」，再发起对话')
+        if (!selectedModelPath.trim()) {
+          throw new Error(
+            '请填写 api_key 并等待模型列表加载后，在「模型」中选择一项',
+          )
         }
         if (!apiKey.trim()) {
-          throw new Error('请先在 api_key 中选择密钥（将以 X-Api-Key 请求头发送）')
+          throw new Error('请填写 api_key（将使用 Authorization: Bearer 发送）')
         }
-        await streamEnterpriseChatCompletions(
-          committedToken,
+        await streamLlmChatCompletions(
+          baseUrl,
           apiKey,
           {
             model: selectedModelPath,
             messages: [...history, { role: 'user', content: text }],
+            stream: chatStreamEnabled,
             signal: ac.signal,
             onToken: (t) => {
               assistant += t
@@ -272,7 +219,7 @@ export default function App() {
         setStreaming(false)
       }
     },
-    [selectedModelPath, committedToken, apiKey],
+    [selectedModelPath, baseUrl, apiKey, chatStreamEnabled],
   )
 
   const runDocumentStream = useCallback(
@@ -284,29 +231,31 @@ export default function App() {
       streamAbortRef.current = ac
 
       try {
-        if (!selectedModelPath.trim()) {
+        if (!baseUrl.trim()) {
           throw new Error(
-            '请先点击「开搞」拉取模型列表，并在「模型」中选择一项',
+            '请填写 baseUrl（如 https://aiplatform.njsrd.com/llm/v1；附件经本机转发到 …/chat/completions）',
           )
         }
-        const jwt = committedToken.trim()
-        if (!jwt) {
-          throw new Error('请先填写 token 并点击「开搞」，再发起对话')
+        if (!selectedModelPath.trim()) {
+          throw new Error(
+            '请填写 api_key 并等待模型列表加载后，在「模型」中选择一项',
+          )
         }
         if (!apiKey.trim()) {
-          throw new Error('请先在 api_key 中选择密钥（将以 X-Api-Key 请求头发送）')
+          throw new Error('请填写 api_key（将使用 Authorization: Bearer 发送）')
         }
         const messages = [
           ...history.map((m) => ({ role: m.role, content: m.content })),
           { role: 'user' as const, content: question },
         ]
-        await streamEnterpriseChatCompletionsWithDocument(
-          committedToken,
+        await streamLlmChatCompletionsWithDocument(
+          baseUrl,
           apiKey,
           {
             model: selectedModelPath,
             messages,
             file,
+            stream: chatStreamEnabled,
             signal: ac.signal,
             onToken: (t) => {
               assistant += t
@@ -356,7 +305,7 @@ export default function App() {
         setStreaming(false)
       }
     },
-    [selectedModelPath, committedToken, apiKey],
+    [selectedModelPath, baseUrl, apiKey, chatStreamEnabled],
   )
 
   const send = useCallback(async () => {
@@ -499,20 +448,32 @@ export default function App() {
           layout="sidebar"
           models={llmModels}
           value={selectedModelPath}
-          authToken={authToken}
+          baseUrl={baseUrl}
           apiKey={apiKey}
-          apiKeyOptions={apiKeySelectOptions}
-          enterprisePickEnabled={enterprisePickEnabled}
+          modelsListLoading={modelsListLoading}
           enterpriseLoading={enterpriseLoading}
           onLoadEnterpriseData={handleLoadEnterpriseData}
-          onTokenBlur={handleTokenBlur}
-          onAuthTokenChange={(v) => {
-            setAuthToken(v)
+          onBaseUrlChange={(v) => {
+            setBaseUrl(v)
+            try {
+              localStorage.setItem(BASE_URL_STORAGE_KEY, v)
+            } catch {
+              /* ignore */
+            }
           }}
           onApiKeyChange={(v) => {
             setApiKey(v)
             try {
               localStorage.setItem(API_KEY_STORAGE_KEY, v)
+            } catch {
+              /* ignore */
+            }
+          }}
+          streamEnabled={chatStreamEnabled}
+          onStreamEnabledChange={(v) => {
+            setChatStreamEnabled(v)
+            try {
+              localStorage.setItem(CHAT_STREAM_STORAGE_KEY, v ? '1' : '0')
             } catch {
               /* ignore */
             }

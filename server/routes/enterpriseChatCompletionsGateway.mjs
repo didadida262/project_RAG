@@ -6,7 +6,10 @@ import {
   ENTERPRISE_CHAT_PATH,
   PUBLIC_API_TARGET,
 } from '../config.mjs'
-import { buildChatCompletionsFetchHeaders } from '../lib/upstreamHeaders.mjs'
+import {
+  buildChatCompletionsFetchHeaders,
+  buildLlmUpstreamFetchHeaders,
+} from '../lib/upstreamHeaders.mjs'
 import { asyncRoute } from '../middleware/asyncRoute.mjs'
 import {
   DocumentExtractError,
@@ -38,6 +41,43 @@ const upload = multer({
 
 const jsonParser = express.json({ limit: '4mb' })
 
+function normalizeIncomingHeader(v) {
+  if (Buffer.isBuffer(v)) return v.toString('utf8')
+  if (Array.isArray(v)) return v.map(String).join(', ')
+  return String(v ?? '')
+}
+
+/** @param {string} s */
+function isSafeHttpOrigin(s) {
+  if (typeof s !== 'string' || !s.trim()) return false
+  try {
+    const u = new URL(s.trim())
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function llmBaseFromReq(req) {
+  const raw = req.headers['x-llm-base-url']
+  if (raw == null) return ''
+  return normalizeIncomingHeader(raw).trim().replace(/\/$/, '')
+}
+
+/**
+ * `X-Llm-Base-Url` 为 API 前缀，须以 `/llm/v1` 结尾；上游会话地址为 `{prefix}/chat/completions`。
+ * 兼容旧客户端只传域名时仍拼 `/llm/v1/chat/completions`。
+ */
+function resolveLlmUpstreamChatUrl(llmBase) {
+  const normalized = String(llmBase || '').trim().replace(/\/$/, '')
+  const full = '/llm/v1/chat/completions'
+  if (normalized.endsWith(full)) return normalized
+  if (normalized.endsWith('/llm/v1')) {
+    return `${normalized}/chat/completions`
+  }
+  return `${normalized}/llm/v1/chat/completions`
+}
+
 function buildDocSystemContent(text, truncated) {
   return [
     SYSTEM_PREAMBLE,
@@ -52,7 +92,10 @@ function buildDocSystemContent(text, truncated) {
 }
 
 /**
- * 与平台相同的会话 URL：`POST /enterprise/api/v1/chat/completions`。
+ * `POST /enterprise/api/v1/chat/completions`。
+ *
+ * - 无 `X-Llm-Base-Url`：`application/json` 或 multipart 转发到配置中的企业平台路径。
+ * - 带 `X-Llm-Base-Url`（合法 http(s)，且为 `…/llm/v1` API 前缀）：转发到 `{prefix}/chat/completions`，请求头仅透传 `Authorization`（Bearer）。
  *
  * - `application/json`：原样转发上游（普通对话）。
  * - `multipart/form-data`：仅在本机读 file（PDF/DOCX），把全文写入首条 `messages` 的 `system.content`，
@@ -75,7 +118,22 @@ export function registerEnterpriseChatCompletionsGateway(app) {
       const ct = String(req.headers['content-type'] || '')
       const isMultipart = ct.includes('multipart/form-data')
 
-      const url = `${PUBLIC_API_TARGET}${ENTERPRISE_CHAT_PATH}`
+      const llmBase = llmBaseFromReq(req)
+      if (req.headers['x-llm-base-url'] != null && !isSafeHttpOrigin(llmBase)) {
+        res.status(400).json({
+          error: {
+            code: 'BAD_LLM_BASE',
+            message:
+              'X-Llm-Base-Url 须为合法 http(s) 地址，例如 https://aiplatform.njsrd.com/llm/v1',
+          },
+        })
+        return
+      }
+
+      const useExternalLlm = Boolean(llmBase)
+      const url = useExternalLlm
+        ? resolveLlmUpstreamChatUrl(llmBase)
+        : `${PUBLIC_API_TARGET}${ENTERPRISE_CHAT_PATH}`
       const ac = new AbortController()
       req.on('close', () => ac.abort())
 
@@ -167,7 +225,9 @@ export function registerEnterpriseChatCompletionsGateway(app) {
         upstreamBody = req.body
       }
 
-      const headers = buildChatCompletionsFetchHeaders(req.headers)
+      const headers = useExternalLlm
+        ? buildLlmUpstreamFetchHeaders(req.headers)
+        : buildChatCompletionsFetchHeaders(req.headers)
       const upstream = await fetch(url, {
         method: 'POST',
         headers,

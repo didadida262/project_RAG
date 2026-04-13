@@ -22,6 +22,7 @@ export function createApp() {
         'Authorization',
         'X-Api-Key',
         'X-API-Key',
+        'X-Llm-Base-Url',
         'token',
         'api_key',
         'Accept',

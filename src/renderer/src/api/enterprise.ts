@@ -1,7 +1,9 @@
 /**
- * 企业平台开放接口。
+ * 企业平台开放接口 + 外部 LLM（baseUrl + `/llm/v1/...`）。
  * 默认请求本机 Express 反代（`server/index.mjs`，默认 8787），由服务端转发公网，避免浏览器 CORS。
  * 若设置 VITE_ENTERPRISE_API_URL 则直连该地址（需上游已允许跨域）。
+ * 会话：浏览器直连 `{API 前缀}/chat/completions`，`Authorization: Bearer <api_key>`；附件仍经本机反代。
+ * 模型下拉列表固定请求 {@link MODEL_SERVICES_LIST_URL}（与 baseUrl 无关）。
  */
 
 export type EnterpriseApiKeyOption = { label: string; value: string }
@@ -10,6 +12,30 @@ function trimOrigin(raw: string | undefined): string {
   if (raw == null) return ''
   const t = raw.replace(/\/$/, '').trim()
   return t
+}
+
+/** 用户填写的平台根地址，如 `https://aiplatform.njsrd.com`（无尾斜杠） */
+export function normalizeLlmBaseUrl(raw: string | undefined): string {
+  return trimOrigin(raw)
+}
+
+/**
+ * 规范为 LLM API 前缀（无尾斜杠），形态固定为 `{scheme}://{host}/llm/v1`。
+ * - 只填域名时自动补 `/llm/v1`；
+ * - 误填完整 `.../llm/v1/chat/completions` 时裁成 `.../llm/v1`；
+ * - 多段 `.../llm/v1/llm/v1` 会折叠为单段 `/llm/v1`。
+ */
+export function normalizeLlmApiPrefix(baseUrl: string): string {
+  let s = normalizeLlmBaseUrl(baseUrl)
+  if (!s) return ''
+  if (s.endsWith('/llm/v1/chat/completions')) {
+    s = s.slice(0, -'/chat/completions'.length).replace(/\/$/, '')
+  }
+  const llmV1 = '/llm/v1'
+  while (s.endsWith(llmV1)) {
+    s = s.slice(0, -llmV1.length).replace(/\/$/, '')
+  }
+  return `${s}${llmV1}`.replace(/\/$/, '')
 }
 
 /**
@@ -180,14 +206,6 @@ function buildEnterpriseAuthHeaders(
   return h
 }
 
-function buildChatCompletionsHeaders(token: string, apiKey: string): Headers {
-  const h = buildEnterpriseAuthHeaders(token, apiKey)
-  h.set('Content-Type', 'application/json')
-  /** OpenAI 兼容流式：SSE，逐块 data: {...} */
-  h.set('Accept', 'text/event-stream')
-  return h
-}
-
 export async function fetchEnterpriseApiKeys(
   token: string,
   apiKey: string,
@@ -219,6 +237,10 @@ export async function fetchEnterpriseApiKeys(
   }
   return out
 }
+
+/** 模型下拉列表固定拉取此地址（与用户填写 baseUrl 无关） */
+export const MODEL_SERVICES_LIST_URL =
+  'http://58.222.41.68/enterprise/api/model-services?pageNum=1&pageSize=10'
 
 export async function fetchEnterpriseModelServices(
   token: string,
@@ -254,18 +276,43 @@ export async function fetchEnterpriseModelServices(
   return out
 }
 
+/**
+ * 模型列表固定请求 {@link MODEL_SERVICES_LIST_URL}（企业 model-services），
+ * 请求头与平台一致：`X-Api-Key`（及可选 Bearer），不依赖用户填写的 baseUrl。
+ */
+export async function fetchLlmModels(apiKey: string): Promise<EnterpriseModelOption[]> {
+  if (!apiKey.trim()) return []
+  const res = await fetch(MODEL_SERVICES_LIST_URL, {
+    method: 'GET',
+    headers: buildEnterpriseAuthHeaders('', apiKey.trim()),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    throw new Error(text || `model-services HTTP ${res.status}`)
+  }
+  let json: unknown
+  try {
+    json = JSON.parse(text) as unknown
+  } catch {
+    throw new Error('model-services 返回非 JSON')
+  }
+  const rows = extractRows(json)
+  const out: EnterpriseModelOption[] = []
+  const seen = new Set<string>()
+  for (const row of rows) {
+    const opt = rowToModelOption(row)
+    if (opt && !seen.has(opt.path)) {
+      seen.add(opt.path)
+      out.push(opt)
+    }
+  }
+  return out
+}
+
 export type EnterpriseChatMessage = {
   role: 'user' | 'assistant' | 'system'
   content: string
 }
-
-/**
- * OpenAI 兼容流式对话（纯 JSON，与平台一致）。
- *
- * POST `{origin}/enterprise/api/v1/chat/completions`，body `{ model, messages, stream: true }`。
- * 请求头：`Authorization: Bearer <JWT>`、`X-Api-Key: <下拉选的 sk-...>`、`Content-Type: application/json`、`Accept: text/event-stream`。
- * 响应：SSE，`data:` 行 JSON 里 `choices[0].delta.content`（或 `reasoning_content`）拼成正文。
- */
 
 /**
  * 解析 OpenAI 兼容 SSE：`data:` 行 JSON 中 `choices[0].delta.content`（或 `reasoning_content`）。
@@ -357,59 +404,139 @@ export async function consumeOpenAiCompatibleSseStream(
   }
 }
 
-export async function streamEnterpriseChatCompletions(
-  token: string,
+async function consumeLlmChatCompletionsResponse(
+  res: Response,
+  onToken: (text: string) => void,
+): Promise<void> {
+  const ct = res.headers.get('content-type') || ''
+  if (ct.includes('text/event-stream')) {
+    await consumeOpenAiCompatibleSseStream(res, onToken)
+    return
+  }
+  const text = await res.text()
+  let j: unknown
+  try {
+    j = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    if (text.trim()) throw new Error(text.slice(0, 500))
+    throw new Error('空响应')
+  }
+  const o = j as {
+    error?: { message?: string }
+    choices?: Array<{
+      message?: { content?: string }
+      delta?: { content?: string; reasoning_content?: string }
+    }>
+  }
+  if (o.error?.message) throw new Error(o.error.message)
+  const c0 = o.choices?.[0]
+  const msg = c0?.message?.content
+  if (typeof msg === 'string' && msg) {
+    onToken(msg)
+    return
+  }
+  const delta = c0?.delta
+  const piece = delta?.content ?? delta?.reasoning_content
+  if (typeof piece === 'string' && piece) {
+    onToken(piece)
+    return
+  }
+  throw new Error(text.slice(0, 400) || '无法解析模型回复')
+}
+
+/**
+ * 直连 `POST {API 前缀}/chat/completions`（如 `https://…/llm/v1/chat/completions`），
+ * Network 里即该地址，不再经本机 8787。若流式遇 CORS，需上游放行或仅用非流式。
+ */
+export async function streamLlmChatCompletions(
+  baseUrl: string,
   apiKey: string,
   params: {
     model: string
     messages: EnterpriseChatMessage[]
+    /** 请求 JSON 的 `stream`，默认 `true` */
+    stream?: boolean
     signal?: AbortSignal
     onToken: (text: string) => void
   },
 ): Promise<void> {
-  const { model, messages, signal, onToken } = params
-  if (!apiKey.trim()) {
-    throw new Error('请先在 api_key 下拉中选择一项（请求头使用 X-Api-Key）')
+  const { model, messages, signal, onToken, stream: streamParam } = params
+  const stream = streamParam !== false
+  if (!normalizeLlmBaseUrl(baseUrl)) {
+    throw new Error('请填写 baseUrl（如 https://aiplatform.njsrd.com/llm/v1）')
   }
-  const url = enterpriseUrl('/enterprise/api/v1/chat/completions')
-  const res = await fetch(url, {
+  if (!apiKey.trim()) {
+    throw new Error('请填写 api_key（将使用 Authorization: Bearer）')
+  }
+  const llmApiPrefix = normalizeLlmApiPrefix(baseUrl)
+  if (!llmApiPrefix) {
+    throw new Error('baseUrl 不是合法 http(s) 地址')
+  }
+
+  const targetUrl = `${llmApiPrefix}/chat/completions`
+  let url: URL
+  try {
+    url = new URL(targetUrl)
+  } catch {
+    throw new Error('baseUrl 无法解析为合法 URL')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('baseUrl 须为 http 或 https')
+  }
+
+  const headers = new Headers()
+  headers.set('Content-Type', 'application/json')
+  headers.set(
+    'Accept',
+    stream ? 'application/json, text/event-stream' : 'application/json',
+  )
+  headers.set('Authorization', authorizationBearer(apiKey.trim()))
+
+  const res = await fetch(url.toString(), {
     method: 'POST',
-    headers: buildChatCompletionsHeaders(token, apiKey),
+    headers,
     body: JSON.stringify({
       model,
       messages,
-      stream: true,
+      stream,
     }),
     signal,
   })
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `chat/completions HTTP ${res.status}`)
+    const t = await res.text().catch(() => '')
+    throw new Error(t || `chat/completions HTTP ${res.status}`)
   }
 
-  await consumeOpenAiCompatibleSseStream(res, onToken)
+  await consumeLlmChatCompletionsResponse(res, onToken)
 }
 
 /**
- * 与会话相同 URL：`POST …/enterprise/api/v1/chat/completions`。
- * 使用 multipart 把 file + messages（JSON 字符串）交给**本机** Node：抽出正文写入首条 `system.content`，
- * 再向上游发纯 JSON（上游不收文件）。
+ * 附件经本机解析后转发到 `{API 前缀}/chat/completions`（请求头 `X-Llm-Base-Url` + Bearer）。
  */
-export async function streamEnterpriseChatCompletionsWithDocument(
-  token: string,
+export async function streamLlmChatCompletionsWithDocument(
+  baseUrl: string,
   apiKey: string,
   params: {
     model: string
     messages: EnterpriseChatMessage[]
     file: File
+    /** multipart 的 `stream` 字段，默认 `true` */
+    stream?: boolean
     signal?: AbortSignal
     onToken: (text: string) => void
   },
 ): Promise<void> {
-  const { model, messages, file, signal, onToken } = params
+  const { model, messages, file, signal, onToken, stream: streamParam } = params
+  const stream = streamParam !== false
   if (!apiKey.trim()) {
-    throw new Error('请先在 api_key 下拉中选择一项（请求头使用 X-Api-Key）')
+    throw new Error('请填写 api_key（Authorization: Bearer）')
+  }
+  const llmApiPrefix = normalizeLlmApiPrefix(baseUrl)
+  if (!llmApiPrefix) {
+    throw new Error(
+      '请填写 baseUrl；附件仅在本机解析，再由网关转发到该前缀下的 /chat/completions',
+    )
   }
   if (!model.trim()) {
     throw new Error('请选择模型')
@@ -422,13 +549,15 @@ export async function streamEnterpriseChatCompletionsWithDocument(
   fd.append('file', file)
   fd.append('model', model.trim())
   fd.append('messages', JSON.stringify(messages))
-  fd.append('stream', 'true')
+  fd.append('stream', stream ? 'true' : 'false')
 
   const headers = new Headers()
-  const auth = authorizationBearer(token)
-  if (auth) headers.set('Authorization', auth)
-  headers.set('X-Api-Key', apiKey.trim())
-  headers.set('Accept', 'text/event-stream')
+  headers.set('Authorization', authorizationBearer(apiKey.trim()))
+  headers.set('X-Llm-Base-Url', llmApiPrefix)
+  headers.set(
+    'Accept',
+    stream ? 'application/json, text/event-stream' : 'application/json',
+  )
 
   const res = await fetch(url, {
     method: 'POST',
@@ -449,5 +578,5 @@ export async function streamEnterpriseChatCompletionsWithDocument(
     throw new Error(msg)
   }
 
-  await consumeOpenAiCompatibleSseStream(res, onToken)
+  await consumeLlmChatCompletionsResponse(res, onToken)
 }

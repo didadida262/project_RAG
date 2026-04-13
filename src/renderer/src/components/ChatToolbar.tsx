@@ -1,23 +1,23 @@
 import type { LlmModelOption } from '../api/client'
 
-export type ApiKeySelectOption = { label: string; value: string }
-
 type Props = {
   models: LlmModelOption[]
   value: string
   onChange: (path: string) => void
-  authToken: string
+  /** LLM API 前缀，如 https://aiplatform.njsrd.com/llm/v1（可只填域名） */
+  baseUrl: string
   apiKey: string
-  apiKeyOptions: ApiKeySelectOption[]
-  /** 已成功点击「开搞」且当时 token 非空，才解锁 api_key / 模型下拉 */
-  enterprisePickEnabled: boolean
+  /** 正在请求固定 model-services 列表（自动或手动） */
+  modelsListLoading?: boolean
   enterpriseLoading?: boolean
   onLoadEnterpriseData: () => void
-  onTokenBlur: () => void
-  onAuthTokenChange: (v: string) => void
+  onBaseUrlChange: (v: string) => void
   onApiKeyChange: (v: string) => void
+  /** 请求体 `stream`，默认 true */
+  streamEnabled?: boolean
+  onStreamEnabledChange?: (enabled: boolean) => void
   disabled?: boolean
-  /** bar：原顶部横条；sidebar：左侧栏纵向，与 api_key / 模型同宽 */
+  /** bar：原顶部横条；sidebar：左侧栏纵向，与 baseUrl / api_key / 模型同宽 */
   layout?: 'bar' | 'sidebar'
 }
 
@@ -25,26 +25,25 @@ export function ChatToolbar({
   models,
   value,
   onChange,
-  authToken,
+  baseUrl,
   apiKey,
-  apiKeyOptions,
-  enterprisePickEnabled,
+  modelsListLoading = false,
   enterpriseLoading = false,
   onLoadEnterpriseData,
-  onTokenBlur,
-  onAuthTokenChange,
+  onBaseUrlChange,
   onApiKeyChange,
+  streamEnabled = true,
+  onStreamEnabledChange,
   disabled,
   layout = 'bar',
 }: Props) {
   const empty = models.length === 0
-  const pickLocked = !enterprisePickEnabled
   const isSidebar = layout === 'sidebar'
 
   const labelClass =
     'shrink-0 text-sm font-medium text-zinc-600 dark:text-zinc-200'
 
-  /** token / api_key / 模型 同宽：横条固定宽；侧栏通栏 */
+  /** baseUrl / api_key / 模型 同宽：横条固定宽；侧栏通栏 */
   const controlWidthClass = isSidebar
     ? 'h-[2.125rem] w-full min-w-0 shrink-0'
     : 'h-[2.125rem] w-[8.5rem] shrink-0 sm:w-[10rem]'
@@ -75,27 +74,26 @@ export function ChatToolbar({
       className={loadBtnClass}
       disabled={disabled || enterpriseLoading}
       onClick={() => onLoadEnterpriseData()}
-      aria-label="拉取 api_key 与模型列表"
-      title="根据当前 token（与 api_key）请求企业接口（开搞）"
+      aria-label="拉取模型列表"
+      title="根据 api_key 调用固定 model-services 接口拉取模型下拉数据"
     >
       {enterpriseLoading ? '开搞中…' : '开搞'}
     </button>
   )
 
-  const tokenField = (
+  const baseUrlField = (
     <label className={fieldClass}>
-      <span className={labelClass}>token</span>
+      <span className={labelClass}>baseUrl</span>
       <input
         type="text"
         autoComplete="off"
         spellCheck={false}
-        placeholder="可选"
+        placeholder="https://aiplatform.njsrd.com/llm/v1"
         className={inputClass}
-        value={authToken}
+        value={baseUrl}
         disabled={disabled}
-        onChange={(e) => onAuthTokenChange(e.target.value)}
-        onBlur={onTokenBlur}
-        aria-label="请求头 token"
+        onChange={(e) => onBaseUrlChange(e.target.value)}
+        aria-label="LLM API 前缀，须以 /llm/v1 结尾（可只填域名由程序补全）"
       />
     </label>
   )
@@ -103,25 +101,35 @@ export function ChatToolbar({
   const apiKeyField = (
     <label className={fieldClass}>
       <span className={labelClass}>api_key</span>
-      <select
-        className={compactSelectClass}
-        value={
-          pickLocked
-            ? ''
-            : apiKeyOptions.some((o) => o.value === apiKey)
-              ? apiKey
-              : (apiKeyOptions[0]?.value ?? '')
-        }
-        disabled={disabled || pickLocked}
+      <input
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="Bearer 密钥（sk-…）"
+        className={inputClass}
+        value={apiKey}
+        disabled={disabled}
         onChange={(e) => onApiKeyChange(e.target.value)}
-        aria-label="请求头 api_key"
-      >
-        {apiKeyOptions.map((o) => (
-          <option key={`${o.label}:${o.value}`} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        aria-label="Authorization Bearer 密钥"
+      />
+    </label>
+  )
+
+  const streamToggleClass = isSidebar
+    ? 'flex w-full min-w-0 cursor-pointer select-none items-center justify-between gap-2 rounded-lg border border-zinc-200/80 bg-white/60 px-2.5 py-2 dark:border-zinc-600/80 dark:bg-zinc-900/50'
+    : 'flex min-w-0 shrink-0 cursor-pointer select-none items-center gap-2 rounded-lg border border-zinc-200/80 bg-white/60 px-2.5 py-2 dark:border-zinc-600/80 dark:bg-zinc-900/50'
+
+  const streamField = (
+    <label className={streamToggleClass}>
+      <span className={labelClass}>流式传输</span>
+      <input
+        type="checkbox"
+        className="h-4 w-4 shrink-0 rounded border-zinc-300 text-cyan-600 accent-cyan-600 focus:ring-2 focus:ring-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-500 dark:accent-emerald-400 dark:focus:ring-emerald-500/25"
+        checked={streamEnabled}
+        disabled={disabled}
+        onChange={(e) => onStreamEnabledChange?.(e.target.checked)}
+        aria-label="是否使用流式传输（请求体 stream 字段）"
+      />
     </label>
   )
 
@@ -130,16 +138,16 @@ export function ChatToolbar({
       <span className={labelClass}>模型</span>
       <select
         className={compactSelectClass}
-        value={pickLocked || empty ? '' : value}
-        disabled={disabled || pickLocked || empty}
+        value={empty ? '' : value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         aria-label="选择推理模型"
       >
-        {pickLocked ? (
-          <option value="">填写 token 后点击「开搞」获取模型</option>
-        ) : empty ? (
+        {empty ? (
           <option value="">
-            未获取到模型列表（检查 token / 企业接口）
+            {modelsListLoading || enterpriseLoading
+              ? '模型列表加载中…'
+              : '暂无模型（填写 api_key 后自动拉取）'}
           </option>
         ) : (
           models.map((m) => (
@@ -158,17 +166,19 @@ export function ChatToolbar({
       <div className={innerClass}>
         {isSidebar ? (
           <>
-            {tokenField}
+            {baseUrlField}
             {apiKeyField}
             {modelField}
+            {streamField}
             {loadButton}
           </>
         ) : (
           <>
             {loadButton}
-            {tokenField}
+            {baseUrlField}
             {apiKeyField}
             {modelField}
+            {streamField}
           </>
         )}
       </div>

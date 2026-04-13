@@ -53,6 +53,21 @@ export function buildChatCompletionsFetchHeaders(incomingHeaders) {
   return h
 }
 
+/**
+ * 转发到外部 OpenAI 兼容 LLM（仅 Bearer，无企业站 Referer/Cookie/X-Api-Key）。
+ */
+export function buildLlmUpstreamFetchHeaders(incomingHeaders) {
+  const h = new Headers()
+  h.set('Content-Type', 'application/json')
+  h.set('Accept', 'application/json, text/event-stream')
+  const raw = incomingHeaders.authorization ?? incomingHeaders.Authorization
+  if (raw != null) {
+    const v = normalizeHeaderValue(raw).trim()
+    if (v) h.set('Authorization', v)
+  }
+  return h
+}
+
 function normalizeHeaderValue(v) {
   if (Buffer.isBuffer(v)) return v.toString('utf8')
   if (Array.isArray(v)) return v.map(String).join(', ')

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { motion } from 'framer-motion'
 
 type Props = {
-  /** 侧栏底部区域：开搞 / token / api_key / 模型 */
+  /** 侧栏底部区域：开搞 / baseUrl / api_key / 模型 */
   children?: ReactNode
 }
 
@@ -25,11 +25,16 @@ export function HeaderBar({ children }: Props) {
 
       <div className="min-h-0 min-w-0 flex-1" aria-hidden />
 
-      <h2 className="mb-3 shrink-0 text-left text-sm font-semibold tracking-wide text-zinc-700 dark:text-zinc-200">
-        操作面板
-      </h2>
-
-      {children}
+      <div
+        className="mt-auto shrink-0 rounded-xl border border-zinc-200/90 bg-zinc-50/95 p-3 shadow-sm ring-1 ring-zinc-900/[0.03] dark:border-zinc-700/90 dark:bg-zinc-900/75 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] dark:ring-white/[0.04]"
+        role="region"
+        aria-label="操作面板"
+      >
+        <h2 className="mb-2.5 shrink-0 bg-gradient-to-r from-cyan-600 to-violet-600 bg-clip-text text-left text-sm font-semibold tracking-wide text-transparent dark:from-cyan-400 dark:to-fuchsia-400">
+          操作面板
+        </h2>
+        {children}
+      </div>
     </aside>
   )
 }
