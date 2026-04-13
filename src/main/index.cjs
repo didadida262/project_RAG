@@ -192,7 +192,7 @@ function createWindow() {
       console.error(err)
       dialog.showErrorBox(
         'Skynet',
-        `无法加载开发服务器 ${devServerUrl}。请用 npm run / yarn dev 同时启动 Vite；若端口被占用请先结束占用 5173 的进程。`,
+        `无法加载开发服务器 ${devServerUrl}。请用 npm run dev 同时启动 Vite 与本机反代；若端口被占用，Vite 会自动换端口（见环境变量 VITE_DEV_SERVER_URL）。`,
       )
     })
   } else {

@@ -7,6 +7,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Vite dev（动态端口，供 Electron 启动脚本读取）
+.vite-dev-port
+
 # Node
 node_modules/
 release/

@@ -8,7 +8,7 @@
   "main": "src/main/index.cjs",
   "scripts": {
     "server": "node server/index.mjs",
-    "dev": "concurrently -k \"npm run server\" \"npm run dev:web\" \"wait-on -t 120000 http://127.0.0.1:5173 http://127.0.0.1:8787/health && electron .\"",
+    "dev": "concurrently -k \"npm run server\" \"npm run dev:web\" \"node scripts/wait-dev-and-start-electron.mjs\"",
     "dev:web": "vite --config src/renderer/vite.config.ts",
     "build": "tsc -b src/renderer/tsconfig.json && vite build --config src/renderer/vite.config.ts",
     "preview": "vite preview --config src/renderer/vite.config.ts",
@@ -27,6 +27,7 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "framer-motion": "^12.38.0",
+    "get-port": "^7.2.0",
     "http-proxy-middleware": "^3.0.5",
     "mammoth": "^1.12.0",
     "multer": "^2.1.1",
