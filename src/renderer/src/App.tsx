@@ -586,7 +586,6 @@ export default function App() {
             onTokenChange={setEntToken}
             onModelChange={setEntSelectedModel}
             onGo={handleEnterprisePanelGo}
-            disabled={streaming}
           />
         </CollapsibleSidePanel>
         <CollapsibleSidePanel
