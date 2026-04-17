@@ -1,9 +1,9 @@
 /**
  * 企业平台开放接口 + 外部 LLM（baseUrl + `/llm/v1/...`）。
- * 默认请求本机 Express 反代（`server/index.mjs`，默认 8787），由服务端转发公网，避免浏览器 CORS。
- * 若设置 VITE_ENTERPRISE_API_URL 则直连该地址（需上游已允许跨域）。
- * 会话：浏览器直连 `{API 前缀}/chat/completions`，`Authorization: Bearer <api_key>`；附件仍经本机反代。
- * 模型下拉列表固定请求 {@link MODEL_SERVICES_LIST_URL}（与 baseUrl 无关）。
+ * 普通会话与附件会话均经本机 Express（默认 8787）`POST /enterprise/api/v1/chat/completions`，
+ * 由 Node 带上 `X-Llm-Base-Url` 转发上游，避免浏览器对第三方域名的 CORS。
+ * 若设置 VITE_ENTERPRISE_API_URL，仅影响企业站其它路径解析（见 `getEnterpriseOrigin`）；会话仍走本机网关。
+ * 模型列表仍可能直连 {@link MODEL_SERVICES_LIST_URL}（与 baseUrl 无关，是否跨域取决于上游）。
  */
 
 export type EnterpriseApiKeyOption = { label: string; value: string }
@@ -504,8 +504,8 @@ export async function streamEnterpriseFixedChat(
 }
 
 /**
- * 直连 `POST {API 前缀}/chat/completions`（如 `https://…/llm/v1/chat/completions`），
- * Network 里即该地址，不再经本机 8787。若流式遇 CORS，需上游放行或仅用非流式。
+ * `POST` 本机网关 `/enterprise/api/v1/chat/completions`（JSON），由服务端按 `X-Llm-Base-Url` 转发上游
+ * `{prefix}/chat/completions`，避免浏览器直连第三方时的 CORS。
  */
 export async function streamLlmChatCompletions(
   baseUrl: string,
@@ -532,16 +532,8 @@ export async function streamLlmChatCompletions(
     throw new Error('baseUrl 不是合法 http(s) 地址')
   }
 
-  const targetUrl = `${llmApiPrefix}/chat/completions`
-  let url: URL
-  try {
-    url = new URL(targetUrl)
-  } catch {
-    throw new Error('baseUrl 无法解析为合法 URL')
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('baseUrl 须为 http 或 https')
-  }
+  const origin = getLocalMiddlewareOrigin().replace(/\/$/, '')
+  const url = `${origin}/enterprise/api/v1/chat/completions`
 
   const headers = new Headers()
   headers.set('Content-Type', 'application/json')
@@ -550,8 +542,9 @@ export async function streamLlmChatCompletions(
     stream ? 'application/json, text/event-stream' : 'application/json',
   )
   headers.set('Authorization', authorizationBearer(apiKey.trim()))
+  headers.set('X-Llm-Base-Url', llmApiPrefix)
 
-  const res = await fetch(url.toString(), {
+  const res = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({

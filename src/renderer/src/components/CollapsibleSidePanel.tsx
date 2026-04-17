@@ -49,6 +49,10 @@ export function CollapsibleSidePanel({
         </span>
       </button>
       <div
+        className="mt-2 h-px w-full shrink-0 bg-gradient-to-r from-transparent via-zinc-300 to-transparent dark:via-zinc-600"
+        aria-hidden
+      />
+      <div
         className={`mt-2 grid w-full min-h-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none motion-reduce:duration-0 ${
           expanded ? '[grid-template-rows:1fr]' : '[grid-template-rows:0fr]'
         }`}

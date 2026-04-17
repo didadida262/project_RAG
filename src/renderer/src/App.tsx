@@ -43,8 +43,8 @@ export default function App() {
   const [entSessionActive, setEntSessionActive] = useState(false)
   const [entCommitApikey, setEntCommitApikey] = useState('')
   const [entCommitToken, setEntCommitToken] = useState('')
-  /** 侧栏折叠：默认展开操作面板1 */
-  const [enterprisePanelExpanded, setEnterprisePanelExpanded] = useState(true)
+  /** 侧栏折叠：默认两个面板均收起 */
+  const [enterprisePanelExpanded, setEnterprisePanelExpanded] = useState(false)
   const [directPanelExpanded, setDirectPanelExpanded] = useState(false)
 
   useEffect(() => {
