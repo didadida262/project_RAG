@@ -23,11 +23,11 @@ npm run dev
 
 **`npm run dev`** 会并行启动：
 
-1. **反代服务** `http://127.0.0.1:8787`（`server/index.mjs`）→ 默认上游 `http://58.222.41.68`
-2. **Vite** `http://127.0.0.1:5173`
+1. **反代服务**（`server/index.mjs`，监听 **`PROXY_PORT`**）→ 转发至 **`PUBLIC_API_TARGET`** 所配置的上游
+2. **Vite** 开发服务器（端口以终端输出为准）
 3. **Electron**（待上述就绪后打开）
 
-前端请求统一打到 **`127.0.0.1:8787/enterprise/...`**，由 Node 转发，无 CORS 问题。
+前端请求统一打到本机反代的 **`/enterprise/...`** 路径，由 Node 转发，无 CORS 问题。
 
 仅浏览器调试 UI（无 Electron）时，**仍需先起反代**，否则企业接口会失败：
 
@@ -70,8 +70,8 @@ npm run electron:build
 | 变量 | 作用 |
 |------|------|
 | **`PROXY_PORT`** | 反代监听端口，默认 `8787` |
-| **`PUBLIC_API_TARGET`** | 上游公网根地址，默认 `http://58.222.41.68` |
-| **`VITE_API_PROXY_URL`** | 前端使用的反代根地址，默认 `http://127.0.0.1:8787`（写入构建） |
+| **`PUBLIC_API_TARGET`** | 上游公网根地址（默认值见 `server/config.mjs`） |
+| **`VITE_API_PROXY_URL`** | 前端使用的反代根地址（默认指向本机反代，写入构建；见 `server/config.mjs`） |
 | **`VITE_ENTERPRISE_API_URL`** | 若设置，前端**直连**该地址（不经过反代）；仅当上游已配置 CORS 时使用 |
 
 ## 脚本摘要
