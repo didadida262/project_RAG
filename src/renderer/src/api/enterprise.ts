@@ -434,6 +434,7 @@ async function consumeLlmChatCompletionsResponse(
       delta?: { content?: string; reasoning_content?: string }
     }>
   }
+  // 
   if (o.error?.message) throw new Error(o.error.message)
   const c0 = o.choices?.[0]
   const msg = c0?.message?.content
