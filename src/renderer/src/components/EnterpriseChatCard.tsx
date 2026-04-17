@@ -38,19 +38,6 @@ export function EnterpriseChatCard({
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
       <label className={fieldClass}>
-        <span className={labelClass}>apikey</span>
-        <input
-          type="text"
-          autoComplete="off"
-          spellCheck={false}
-          className={controlWidthClass}
-          value={apikey}
-          disabled={disabled}
-          onChange={(e) => onApikeyChange(e.target.value)}
-          aria-label="X-Api-Key"
-        />
-      </label>
-      <label className={fieldClass}>
         <span className={labelClass}>token</span>
         <input
           type="text"
@@ -62,6 +49,19 @@ export function EnterpriseChatCard({
           disabled={disabled}
           onChange={(e) => onTokenChange(e.target.value)}
           aria-label="Authorization"
+        />
+      </label>
+      <label className={fieldClass}>
+        <span className={labelClass}>apikey</span>
+        <input
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          className={controlWidthClass}
+          value={apikey}
+          disabled={disabled}
+          onChange={(e) => onApikeyChange(e.target.value)}
+          aria-label="X-Api-Key"
         />
       </label>
       <label className={fieldClass}>
