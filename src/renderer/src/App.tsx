@@ -159,15 +159,49 @@ export default function App() {
     })
   }, [llmModels, selectedModelPath])
 
-  const handleLoadEnterpriseData = useCallback(async () => {
-    setEnterpriseLoading(true)
+  /** 操作面板2「开搞」：关闭企业会话，校验直连配置后刷新模型列表 */
+  const handleDirectPanelGo = useCallback(async () => {
     setWarnings([])
+    const bu = baseUrl.trim()
+    const key = apiKey.trim()
+    const model = selectedModelPath.trim()
+    if (!bu) {
+      setWarnings((w) => [...w, '请在操作面板2填写 baseUrl'])
+      return
+    }
+    if (!key) {
+      setWarnings((w) => [...w, '请在操作面板2填写 api_key'])
+      return
+    }
+    if (
+      llmModels.length === 0 ||
+      !model ||
+      !llmModels.some((m) => m.path === model)
+    ) {
+      setWarnings((w) => [
+        ...w,
+        '请等待模型列表加载完成并在「模型」中选择一项。',
+      ])
+      return
+    }
+    setEntSessionActive(false)
+    setEnterpriseLoading(true)
     try {
       await loadLlmModels(apiKey)
+      setWarnings(['已激活操作面板2：直连会话，后续消息将使用 baseUrl + api_key。'])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '刷新模型列表失败'
+      setWarnings([msg])
     } finally {
       setEnterpriseLoading(false)
     }
-  }, [apiKey, loadLlmModels])
+  }, [
+    baseUrl,
+    apiKey,
+    selectedModelPath,
+    llmModels,
+    loadLlmModels,
+  ])
 
   const handleEnterprisePanelGo = useCallback(() => {
     const k = entApikey.trim()
@@ -192,10 +226,12 @@ export default function App() {
       ])
       return
     }
-    setWarnings([])
     setEntCommitApikey(k)
     setEntCommitToken(t)
     setEntSessionActive(true)
+    setWarnings([
+      '已激活操作面板1：企业固定地址会话，后续消息将请求企业 chat/completions。',
+    ])
   }, [entApikey, entToken, entSelectedModel, llmModels])
 
   const stopStream = useCallback(() => {
@@ -603,7 +639,7 @@ export default function App() {
             apiKey={apiKey}
             modelsListLoading={modelsListLoading}
             enterpriseLoading={enterpriseLoading}
-            onLoadEnterpriseData={handleLoadEnterpriseData}
+            onGo={handleDirectPanelGo}
             onBaseUrlChange={(v) => {
               setBaseUrl(v)
               try {

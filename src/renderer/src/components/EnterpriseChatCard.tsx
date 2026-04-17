@@ -94,7 +94,7 @@ export function EnterpriseChatCard({
         disabled={disabled}
         onClick={() => onGo()}
         aria-label="启用企业固定地址会话"
-        title="使用当前 apikey、token 与上方所选模型（与操作面板2 列表同源）；请求 58.222.41.68 chat/completions"
+        title="启用企业固定地址会话（与操作面板2 互斥）；使用当前 apikey、token 与上方所选模型，请求 58.222.41.68 chat/completions"
       >
         开搞
       </button>

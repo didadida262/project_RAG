@@ -10,7 +10,8 @@ type Props = {
   /** 正在请求固定 model-services 列表（自动或手动） */
   modelsListLoading?: boolean
   enterpriseLoading?: boolean
-  onLoadEnterpriseData: () => void
+  /** 操作面板2「开搞」：激活直连会话逻辑（由 App 校验并关闭企业会话等） */
+  onGo: () => void
   onBaseUrlChange: (v: string) => void
   onApiKeyChange: (v: string) => void
   /** 请求体 `stream`，默认 true */
@@ -29,7 +30,7 @@ export function ChatToolbar({
   apiKey,
   modelsListLoading = false,
   enterpriseLoading = false,
-  onLoadEnterpriseData,
+  onGo,
   onBaseUrlChange,
   onApiKeyChange,
   streamEnabled = true,
@@ -73,9 +74,9 @@ export function ChatToolbar({
       type="button"
       className={loadBtnClass}
       disabled={disabled || enterpriseLoading}
-      onClick={() => onLoadEnterpriseData()}
-      aria-label="拉取模型列表"
-      title="根据 api_key 调用固定 model-services 接口拉取模型下拉数据"
+      onClick={() => onGo()}
+      aria-label="激活操作面板2直连会话"
+      title="关闭企业固定地址会话；校验 baseUrl / api_key / 模型后刷新 model-services 列表"
     >
       {enterpriseLoading ? '开搞中…' : '开搞'}
     </button>
