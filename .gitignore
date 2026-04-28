@@ -7,11 +7,14 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Vite dev（动态端口，供 Electron 启动脚本读取）
+# Vite dev
 .vite-dev-port
 
 # Node
 node_modules/
+# Tauri
+src-tauri/target/
+src-tauri/gen/
 release/
 *.log
 npm-debug.log*

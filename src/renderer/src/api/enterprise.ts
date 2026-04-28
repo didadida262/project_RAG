@@ -1,7 +1,7 @@
 /**
  * 企业平台开放接口 + 外部 LLM（baseUrl + `/llm/v1/...`）。
- * 普通会话与附件会话均经本机 Express（默认 8787）`POST /enterprise/api/v1/chat/completions`，
- * 由 Node 带上 `X-Llm-Base-Url` 转发上游，避免浏览器对第三方域名的 CORS。
+ * 普通会话与附件会话均经本机 Axum 网关（默认 8787）`POST /enterprise/api/v1/chat/completions`，
+ * 由 Rust 后端带上 `X-Llm-Base-Url` 转发上游，避免浏览器对第三方域名的 CORS。
  * 若设置 VITE_ENTERPRISE_API_URL，仅影响企业站其它路径解析（见 `getEnterpriseOrigin`）；会话仍走本机网关。
  * 模型列表仍可能直连 {@link MODEL_SERVICES_LIST_URL}（与 baseUrl 无关，是否跨域取决于上游）。
  */
@@ -40,19 +40,11 @@ export function normalizeLlmApiPrefix(baseUrl: string): string {
 
 /**
  * 必须使用绝对 URL：开发态页面在 http://127.0.0.1:5173 时相对路径尚能误打同源；
- * 打包后 Electron 为 file://，origin 为空，相对路径会变成 file:///… 导致请求瞬间失败。
+ * 打包后 Tauri 为自定义协议（如 https://tauri.localhost），相对路径可能失效。
  */
 function getEnterpriseOrigin(): string {
   const direct = trimOrigin(import.meta.env.VITE_ENTERPRISE_API_URL)
   if (direct) return direct
-
-  if (
-    typeof window !== 'undefined' &&
-    typeof window.electronAPI?.apiBaseUrl === 'string'
-  ) {
-    const fromShell = trimOrigin(window.electronAPI.apiBaseUrl)
-    if (fromShell) return fromShell
-  }
 
   const proxy = trimOrigin(import.meta.env.VITE_API_PROXY_URL)
   if (proxy) return proxy
@@ -73,14 +65,6 @@ function enterpriseUrl(pathWithQuery: string): string {
 function getLocalMiddlewareOrigin(): string {
   const proxy = trimOrigin(import.meta.env.VITE_API_PROXY_URL)
   if (proxy) return proxy
-
-  if (
-    typeof window !== 'undefined' &&
-    typeof window.electronAPI?.apiBaseUrl === 'string'
-  ) {
-    const fromShell = trimOrigin(window.electronAPI.apiBaseUrl)
-    if (fromShell) return fromShell
-  }
 
   return 'http://127.0.0.1:8787'
 }
