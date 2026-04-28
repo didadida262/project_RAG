@@ -19,19 +19,18 @@ pub fn run() {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let shutdown_tx = std::sync::Mutex::new(Some(shutdown_tx));
 
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    let config_clone = config.clone();
+    let client_clone = client.clone();
+    rt.spawn(async move {
+        if let Err(e) = proxy::start_server(config_clone, client_clone, shutdown_rx).await {
+            log::error!("[api-proxy] server error: {}", e);
+        }
+    });
+
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
         .invoke_handler(tauri::generate_handler![commands::get_api_base_url])
-        .setup(move |_app| {
-            let config_clone = config.clone();
-            let client_clone = client.clone();
-            tokio::spawn(async move {
-                if let Err(e) = proxy::start_server(config_clone, client_clone, shutdown_rx).await {
-                    log::error!("[api-proxy] server error: {}", e);
-                }
-            });
-            Ok(())
-        })
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let _app_handle = window.app_handle();
